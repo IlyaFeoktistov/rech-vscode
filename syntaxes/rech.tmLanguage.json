@@ -19,7 +19,9 @@
     { "include": "#prepositions" },
     { "include": "#builtin-types" },
     { "include": "#operators" },
+    { "include": "#method-call" },
     { "include": "#field-access" },
+    { "include": "#function-call" },
     { "include": "#type-name" }
   ],
   "repository": {
@@ -120,11 +122,22 @@
         }
       ]
     },
+    "method-call": {
+      "match": "\\.([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)(?=\\s*\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.rech" }
+      }
+    },
     "field-access": {
       "match": "\\.([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
       "captures": {
         "1": { "name": "variable.other.member.rech" }
       }
+    },
+    "function-call": {
+      "comment": "Голый идентификатор перед '(' - вызов функции (обычный, внешний по alias-имени после 'как', или объявление функции/метода - те же 'имя(' по форме). Только с маленькой буквы - имена типов/сущностей (Пользователь(...) в конструкторе 'новый Пользователь(...)') с большой и остаются entity.name.type через отдельное правило ниже.",
+      "match": "\\b[a-zа-яё_][A-Za-zА-Яа-яЁё0-9_]*(?=\\s*\\()",
+      "name": "entity.name.function.rech"
     },
     "type-name": {
       "name": "entity.name.type.rech",
