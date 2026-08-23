@@ -1,0 +1,86 @@
+{
+  "name": "rech",
+  "displayName": "Rech",
+  "description": "Подсветка синтаксиса и команды сборки/запуска для языка Rech",
+  "version": "0.1.0",
+  "publisher": "ilyafeoktistov",
+  "author": "Ilya Feoktistov",
+  "license": "SEE LICENSE IN https://github.com/IlyaFeoktistov/Rech",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IlyaFeoktistov/rech-vscode"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Programming Languages"],
+  "activationEvents": [
+    "onLanguage:rech"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "rech",
+        "aliases": ["Rech", "rech"],
+        "extensions": [".rech"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rech",
+        "scopeName": "source.rech",
+        "path": "./syntaxes/rech.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "rech.build",
+        "title": "Rech: собрать",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "rech.run",
+        "title": "Rech: собрать и запустить",
+        "icon": "$(play)"
+      },
+      {
+        "command": "rech.test",
+        "title": "Rech: запустить тесты"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "rech.run",
+          "when": "resourceLangId == rech",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rech.build",
+          "when": "resourceLangId == rech",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        { "command": "rech.build", "when": "resourceLangId == rech" },
+        { "command": "rech.run", "when": "resourceLangId == rech" },
+        { "command": "rech.test" }
+      ]
+    },
+    "configuration": {
+      "title": "Rech",
+      "properties": {
+        "rech.path": {
+          "type": "string",
+          "default": "rech",
+          "description": "Путь к исполняемому файлу компилятора rech (по умолчанию ищется в PATH)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "node --check extension.js"
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Rech",
+  "scopeName": "source.rech",
+  "fileTypes": ["rech"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#booleans" },
+    { "include": "#this-keyword" },
+    { "include": "#keywords-control" },
+    { "include": "#logical-word-operators" },
+    { "include": "#visibility-keywords" },
+    { "include": "#constructor-keywords" },
+    { "include": "#function-declaration" },
+    { "include": "#entity-declaration" },
+    { "include": "#keywords-declaration" },
+    { "include": "#prepositions" },
+    { "include": "#builtin-types" },
+    { "include": "#operators" },
+    { "include": "#field-access" },
+    { "include": "#type-name" }
+  ],
+  "repository": {
+    "comments": {
+      "name": "comment.line.double-slash.rech",
+      "match": "//.*$"
+    },
+    "strings": {
+      "name": "string.quoted.double.rech",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.rech",
+          "match": "\\\\[ntr\"\\\\]"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.rech",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.rech",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "booleans": {
+      "name": "constant.language.boolean.rech",
+      "match": "\\b(истина|ложь)\\b"
+    },
+    "this-keyword": {
+      "name": "variable.language.this.rech",
+      "match": "\\bэтот\\b"
+    },
+    "keywords-control": {
+      "name": "keyword.control.rech",
+      "match": "\\b(если|иначе|пока|для|от|до|вернуть|утверждать|становится)\\b"
+    },
+    "logical-word-operators": {
+      "name": "keyword.operator.word.rech",
+      "match": "\\b(и|или|не)\\b"
+    },
+    "visibility-keywords": {
+      "name": "storage.modifier.rech",
+      "match": "\\b(приватный|приватная|приватное|приватные|публичный|публичная|публичное|публичные)\\b"
+    },
+    "constructor-keywords": {
+      "name": "keyword.other.new.rech",
+      "match": "\\b(новый|новая|новое|новые)\\b"
+    },
+    "function-declaration": {
+      "match": "\\b(функция)\\s+([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.rech" },
+        "2": { "name": "entity.name.function.rech" }
+      }
+    },
+    "entity-declaration": {
+      "match": "\\b(сущность|класс)\\s+([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.rech" },
+        "2": { "name": "entity.name.type.rech" }
+      }
+    },
+    "keywords-declaration": {
+      "name": "keyword.other.rech",
+      "match": "\\b(функция|переменная|сущность|класс|имеет|использовать|из|как|внешняя|состояние|вывести)\\b"
+    },
+    "prepositions": {
+      "name": "keyword.other.preposition.rech",
+      "match": "\\b(с|в)\\b"
+    },
+    "builtin-types": {
+      "name": "support.type.primitive.rech",
+      "match": "\\b(Строка|Целое|Число|Логическое|Файл|Список|Стопка|Очередь)\\b"
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.rech",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.bitwise.rech",
+          "match": "<<|>>|\\||\\^|&|~"
+        },
+        {
+          "name": "keyword.operator.arithmetic.rech",
+          "match": "\\+\\+|--|\\+|-|\\*|/"
+        },
+        {
+          "name": "keyword.operator.assignment.rech",
+          "match": "="
+        }
+      ]
+    },
+    "field-access": {
+      "match": "\\.([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
+      "captures": {
+        "1": { "name": "variable.other.member.rech" }
+      }
+    },
+    "type-name": {
+      "name": "entity.name.type.rech",
+      "match": "\\b[A-ZА-ЯЁ][A-Za-zА-Яа-яЁё0-9_]*\\b"
+    }
+  }
+}
