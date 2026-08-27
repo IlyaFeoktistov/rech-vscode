@@ -28,8 +28,26 @@
   ],
   "repository": {
     "comments": {
-      "name": "comment.line.double-slash.rech",
-      "match": "//.*$"
+      "patterns": [
+        {
+          "comment": "'/** ... */' (doc-комментарий, docs/SPEC.md) - ДО обычного блочного, иначе тот перехватил бы его с первых двух символов. '(?!/)' исключает '/**/'  (закрывается немедленно) - это обычный пустой блочный комментарий, не doc.",
+          "name": "comment.block.documentation.rech",
+          "begin": "/\\*\\*(?!/)",
+          "end": "\\*/",
+          "patterns": [
+            { "match": "^\\s*\\*(?!/)", "name": "punctuation.definition.comment.rech" }
+          ]
+        },
+        {
+          "name": "comment.block.rech",
+          "begin": "/\\*",
+          "end": "\\*/"
+        },
+        {
+          "name": "comment.line.double-slash.rech",
+          "match": "//.*$"
+        }
+      ]
     },
     "strings": {
       "name": "string.quoted.double.rech",
