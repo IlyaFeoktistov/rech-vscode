@@ -48,6 +48,11 @@
       {
         "command": "rech.test",
         "title": "Rech: запустить тесты"
+      },
+      {
+        "command": "rech.debug",
+        "title": "Rech: отладить",
+        "icon": "$(debug-alt)"
       }
     ],
     "menus": {
@@ -58,17 +63,61 @@
           "group": "navigation@1"
         },
         {
-          "command": "rech.build",
+          "command": "rech.debug",
           "when": "resourceLangId == rech",
           "group": "navigation@2"
+        },
+        {
+          "command": "rech.build",
+          "when": "resourceLangId == rech",
+          "group": "navigation@3"
         }
       ],
       "commandPalette": [
         { "command": "rech.build", "when": "resourceLangId == rech" },
         { "command": "rech.run", "when": "resourceLangId == rech" },
+        { "command": "rech.debug", "when": "resourceLangId == rech" },
         { "command": "rech.test" }
       ]
     },
+    "breakpoints": [
+      { "language": "rech" }
+    ],
+    "debuggers": [
+      {
+        "type": "rech",
+        "label": "Rech",
+        "languages": ["rech"],
+        "configurationAttributes": {
+          "launch": {
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Файл или каталог .rech (либо файл .rechproj) для отладки. По умолчанию - файл проекта (.rechproj) в корне рабочей области, если он единственный, иначе активный .rech-файл редактора.",
+                "default": "${file}"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Остановиться на самой первой исполненной инструкции \"главная\".",
+                "default": false
+              }
+            }
+          }
+        },
+        "configurationSnippets": [
+          {
+            "label": "Rech: отладить",
+            "description": "Запуск отладчика Rech (rech debug) - без \"program\" использует файл проекта/активный файл.",
+            "body": {
+              "type": "rech",
+              "request": "launch",
+              "name": "Rech: отладить",
+              "stopOnEntry": false
+            }
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "Rech",
       "properties": {
