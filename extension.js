@@ -48,6 +48,7 @@ function activate(context) {
     vscode.debug.registerDebugConfigurationProvider('rech', new RechDebugConfigurationProvider()),
     vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
     vscode.languages.registerHoverProvider('rech', { provideHover: provideRechHover }),
+    vscode.languages.registerDefinitionProvider('rech', { provideDefinition: provideRechDefinition }),
     vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.')
   );
 }
@@ -379,6 +380,22 @@ async function provideRechHover(document, position) {
     return null;
   }
   return new vscode.Hover(new vscode.MarkdownString(resp.result.contents.value));
+}
+
+async function provideRechDefinition(document, position) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/definition', {
+    textDocument: { uri: document.uri.toString() },
+    position: { line: position.line, character: position.character },
+  });
+  if (!resp || !resp.result) {
+    return null;
+  }
+  const { uri, range } = resp.result;
+  return new vscode.Location(
+    vscode.Uri.parse(uri),
+    new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character)
+  );
 }
 
 // completionKindMap - LSP CompletionItemKind (1-индексный, см.
