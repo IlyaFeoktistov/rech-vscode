@@ -17,6 +17,13 @@
 // debug" - сервер протокола по stdin/stdout, internal/debugadapter) - это
 // расширение только запускает его как внешний процесс и передаёт цель через
 // launch.program, никакой логики отладки здесь нет.
+//
+// Hover/автодополнение - тем же принципом, реализованы в "rech lsp"
+// (сервер LSP по stdin/stdout, internal/lsp) - это расширение запускает
+// его один раз (лениво, при первом обращении) и говорит с ним напрямую по
+// JSON-RPC 2.0 (LspClient ниже), без пакета vscode-languageclient (никакого
+// npm-зависимого шага сборки в этом расширении, тот же принцип, что и у
+// остальной части файла).
 
 const vscode = require('vscode');
 const path = require('path');
@@ -25,10 +32,12 @@ const cp = require('child_process');
 let diagnostics;
 let outputChannel;
 let terminal;
+let lspClient;
 
 function activate(context) {
   diagnostics = vscode.languages.createDiagnosticCollection('rech');
   outputChannel = vscode.window.createOutputChannel('Rech');
+  lspClient = new LspClient();
   context.subscriptions.push(diagnostics, outputChannel);
 
   context.subscriptions.push(
@@ -37,13 +46,18 @@ function activate(context) {
     vscode.commands.registerCommand('rech.test', () => runCaptured('test', { wholeProject: true })),
     vscode.commands.registerCommand('rech.debug', () => startDebugging()),
     vscode.debug.registerDebugConfigurationProvider('rech', new RechDebugConfigurationProvider()),
-    vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory())
+    vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
+    vscode.languages.registerHoverProvider('rech', { provideHover: provideRechHover }),
+    vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.')
   );
 }
 
 function deactivate() {
   if (terminal) {
     terminal.dispose();
+  }
+  if (lspClient) {
+    lspClient.stop();
   }
 }
 
@@ -241,6 +255,163 @@ class RechDebugAdapterDescriptorFactory {
   createDebugAdapterDescriptor() {
     return new vscode.DebugAdapterExecutable(rechPath(), ['debug']);
   }
+}
+
+// LspClient - клиент JSON-RPC 2.0 к "rech lsp" (internal/lsp) поверх
+// Content-Length-кадра (тот же формат, что и у DAP-стороны выше, но здесь
+// он разобран вручную - ни один пакет вроде vscode-languageclient не
+// подключается, см. package doc). Один процесс на всё время жизни
+// расширения (не пересоздаётся на каждый файл) - запускается лениво, при
+// первом hover/completion.
+class LspClient {
+  constructor() {
+    this.proc = null;
+    this.buffer = Buffer.alloc(0);
+    this.pending = new Map();
+    this.nextId = 1;
+    this.knownDocs = new Set();
+  }
+
+  ensureStarted() {
+    if (this.proc) {
+      return;
+    }
+    this.proc = cp.spawn(rechPath(), ['lsp']);
+    this.proc.stdout.on('data', (d) => this.onData(d));
+    this.proc.on('error', () => { this.proc = null; });
+    this.proc.on('exit', () => { this.proc = null; this.knownDocs.clear(); });
+    this.request('initialize', {});
+  }
+
+  stop() {
+    if (this.proc) {
+      this.notify('exit', null);
+      this.proc = null;
+    }
+  }
+
+  onData(chunk) {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    for (;;) {
+      const headerEnd = this.buffer.indexOf('\r\n\r\n');
+      if (headerEnd < 0) {
+        return;
+      }
+      const header = this.buffer.subarray(0, headerEnd).toString('utf8');
+      const m = /Content-Length:\s*(\d+)/i.exec(header);
+      if (!m) {
+        this.buffer = this.buffer.subarray(headerEnd + 4);
+        continue;
+      }
+      const len = parseInt(m[1], 10);
+      const bodyStart = headerEnd + 4;
+      if (this.buffer.length < bodyStart + len) {
+        return;
+      }
+      const body = this.buffer.subarray(bodyStart, bodyStart + len).toString('utf8');
+      this.buffer = this.buffer.subarray(bodyStart + len);
+      let msg;
+      try {
+        msg = JSON.parse(body);
+      } catch {
+        continue;
+      }
+      if (msg.id !== undefined && this.pending.has(msg.id)) {
+        this.pending.get(msg.id)(msg);
+        this.pending.delete(msg.id);
+      }
+    }
+  }
+
+  send(msg) {
+    if (!this.proc) {
+      return;
+    }
+    const b = Buffer.from(JSON.stringify(msg), 'utf8');
+    this.proc.stdin.write(`Content-Length: ${b.length}\r\n\r\n`);
+    this.proc.stdin.write(b);
+  }
+
+  request(method, params) {
+    this.ensureStarted();
+    return new Promise((resolve) => {
+      const id = this.nextId++;
+      this.pending.set(id, resolve);
+      this.send({ jsonrpc: '2.0', id, method, params });
+    });
+  }
+
+  notify(method, params) {
+    this.send({ jsonrpc: '2.0', method, params });
+  }
+
+  // syncDocument сообщает серверу текущее содержимое document целиком
+  // (didOpen при первом обращении к этому URI, иначе didChange -
+  // textDocumentSync: Full на стороне сервера ожидает именно весь текст, не
+  // дифф) - вызывается перед КАЖДЫМ hover/completion, чтобы сервер всегда
+  // видел то же, что сейчас в редакторе, даже без отдельных подписок на
+  // onDidChangeTextDocument.
+  syncDocument(document) {
+    this.ensureStarted();
+    const uri = document.uri.toString();
+    const text = document.getText();
+    if (this.knownDocs.has(uri)) {
+      this.notify('textDocument/didChange', {
+        textDocument: { uri, version: document.version },
+        contentChanges: [{ text }],
+      });
+    } else {
+      this.knownDocs.add(uri);
+      this.notify('textDocument/didOpen', {
+        textDocument: { uri, languageId: 'rech', version: document.version, text },
+      });
+    }
+  }
+}
+
+async function provideRechHover(document, position) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/hover', {
+    textDocument: { uri: document.uri.toString() },
+    position: { line: position.line, character: position.character },
+  });
+  if (!resp || !resp.result || !resp.result.contents) {
+    return null;
+  }
+  return new vscode.Hover(new vscode.MarkdownString(resp.result.contents.value));
+}
+
+// completionKindMap - LSP CompletionItemKind (1-индексный, см.
+// internal/lsp/completion.go) -> vscode.CompletionItemKind (0-индексный) -
+// числа НЕ совпадают между двумя перечислениями, нужен явный перевод.
+const completionKindMap = {
+  2: vscode.CompletionItemKind.Method,
+  3: vscode.CompletionItemKind.Function,
+  5: vscode.CompletionItemKind.Field,
+  6: vscode.CompletionItemKind.Variable,
+  7: vscode.CompletionItemKind.Class,
+  14: vscode.CompletionItemKind.Keyword,
+};
+
+async function provideRechCompletionItems(document, position) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/completion', {
+    textDocument: { uri: document.uri.toString() },
+    position: { line: position.line, character: position.character },
+  });
+  if (!resp || !Array.isArray(resp.result)) {
+    return [];
+  }
+  return resp.result.map((item) => {
+    const ci = new vscode.CompletionItem(item.label, completionKindMap[item.kind]);
+    if (item.detail) {
+      ci.detail = item.detail;
+    }
+    if (item.documentation) {
+      ci.documentation = new vscode.MarkdownString(item.documentation);
+    }
+    return ci;
+  });
 }
 
 module.exports = { activate, deactivate };
