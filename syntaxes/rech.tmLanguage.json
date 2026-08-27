@@ -64,7 +64,7 @@
     },
     "keywords-control": {
       "name": "keyword.control.rech",
-      "match": "\\b(если|иначе|пока|для|от|до|вернуть|утверждать|становится)\\b"
+      "match": "\\b(если|иначе|пока|для|от|до|вернуть|утверждать|становится|попытаться|поймать|выбросить|относится)\\b"
     },
     "logical-word-operators": {
       "name": "keyword.operator.word.rech",
@@ -114,7 +114,7 @@
     },
     "prepositions": {
       "name": "keyword.other.preposition.rech",
-      "match": "\\b(с|в)\\b"
+      "match": "\\b(с|в|к)\\b"
     },
     "builtin-types": {
       "name": "support.type.primitive.rech",
