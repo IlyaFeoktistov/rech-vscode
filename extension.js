@@ -1,10 +1,16 @@
 // Расширение VS Code для языка Rech (github.com/IlyaFeoktistov/Rech).
 // Автор: Ilya Feoktistov.
 //
-// Команды "Rech: собрать"/"Rech: собрать и запустить"/"Rech: отладить" (через
-// child_process, не интерактивный терминал - вывод разбирается на
-// диагностику "строка N"), "Rech: запустить тесты" (по каталогу проекта,
-// через rech test). "rech.run" запускается в интегрированном терминале,
+// Команды "Rech: собрать"/"Rech: собрать библиотеку"/"Rech: собрать и
+// запустить"/"Rech: отладить" (через child_process, не интерактивный
+// терминал - вывод разбирается на диагностику "строка N"), "Rech: запустить
+// тесты" (по каталогу проекта, через rech test). "Rech: собрать библиотеку" -
+// тот же "rech build", только с "--lib" (docs/ROADMAP.md, Шаг 7,
+// "обратное направление") - собирает разделяемую библиотеку (.so/.dylib/
+// .dll) и C-заголовок (.h) вместо обычного бинарника; своей команды
+// запуска для библиотеки нет - "rech run --lib" сам по себе ошибка
+// (библиотека не исполняется как программа). "rech.run" запускается в
+// интегрированном терминале,
 // а не через child_process - в отличие от build/test, у выполняемой
 // Rech-программы может быть собственный интерактивный ввод
 // (прочитать_строку и т. п.), терминал даёт ей настоящий stdin.
@@ -42,6 +48,7 @@ function activate(context) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('rech.build', () => runCaptured('build')),
+    vscode.commands.registerCommand('rech.buildLib', () => runCaptured('build', { extraArgs: ['--lib'] })),
     vscode.commands.registerCommand('rech.run', () => runInTerminal('run')),
     vscode.commands.registerCommand('rech.test', () => runCaptured('test', { wholeProject: true })),
     vscode.commands.registerCommand('rech.debug', () => startDebugging()),
@@ -130,6 +137,9 @@ async function runInTerminal(subcommand) {
 // редакторе на этой строке, весь вывод целиком - в OutputChannel.
 // wholeProject - для "rech test" запускает по корню открытой рабочей
 // области, а не по одному файлу (тесты обычно разбросаны по каталогу).
+// extraArgs - флаги между subcommand и target ("--lib" у "Rech: собрать
+// библиотеку") - execRech всё равно берёт cwd из ПОСЛЕДНЕГО элемента
+// массива аргументов, значит extraArgs должны идти перед target, не после.
 async function runCaptured(subcommand, opts = {}) {
   let target;
   if (opts.wholeProject) {
@@ -148,11 +158,13 @@ async function runCaptured(subcommand, opts = {}) {
     target = resolved.target;
   }
 
+  const extraArgs = opts.extraArgs || [];
+
   outputChannel.clear();
   outputChannel.show(true);
-  outputChannel.appendLine(`$ ${rechPath()} ${subcommand} ${target}`);
+  outputChannel.appendLine(`$ ${rechPath()} ${subcommand} ${extraArgs.join(' ')} ${target}`.replace(/ {2,}/g, ' '));
 
-  const result = await execRech([subcommand, target]);
+  const result = await execRech([subcommand, ...extraArgs, target]);
   outputChannel.append(result.stdout);
   outputChannel.append(result.stderr);
 

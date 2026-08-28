@@ -12,6 +12,7 @@
     { "include": "#keywords-control" },
     { "include": "#logical-word-operators" },
     { "include": "#visibility-keywords" },
+    { "include": "#export-keyword" },
     { "include": "#constructor-keywords" },
     { "include": "#function-declaration" },
     { "include": "#entity-declaration" },
@@ -91,6 +92,11 @@
     "visibility-keywords": {
       "name": "storage.modifier.rech",
       "match": "\\b(приватный|приватная|приватное|приватные|публичный|публичная|публичное|публичные)\\b"
+    },
+    "export-keyword": {
+      "comment": "'экспортировать' перед 'функция'/'сущность'/'класс'/'структура' - помечает объявление видимым снаружи разделяемой библиотеки (rech build --lib). Тот же scope, что и visibility-keywords выше - оба модификатор перед объявлением, различие смысла компилятору, не подсветке.",
+      "name": "storage.modifier.rech",
+      "match": "\\bэкспортировать\\b"
     },
     "constructor-keywords": {
       "name": "keyword.other.new.rech",

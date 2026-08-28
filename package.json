@@ -41,6 +41,10 @@
         "icon": "$(gear)"
       },
       {
+        "command": "rech.buildLib",
+        "title": "Rech: собрать библиотеку"
+      },
+      {
         "command": "rech.run",
         "title": "Rech: собрать и запустить",
         "icon": "$(play)"
@@ -75,6 +79,7 @@
       ],
       "commandPalette": [
         { "command": "rech.build", "when": "resourceLangId == rech" },
+        { "command": "rech.buildLib", "when": "resourceLangId == rech" },
         { "command": "rech.run", "when": "resourceLangId == rech" },
         { "command": "rech.debug", "when": "resourceLangId == rech" },
         { "command": "rech.test" }
