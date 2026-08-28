@@ -10,6 +10,7 @@
     { "include": "#booleans" },
     { "include": "#this-keyword" },
     { "include": "#keywords-control" },
+    { "include": "#json-format-marker" },
     { "include": "#logical-word-operators" },
     { "include": "#visibility-keywords" },
     { "include": "#export-keyword" },
@@ -83,7 +84,12 @@
     },
     "keywords-control": {
       "name": "keyword.control.rech",
-      "match": "\\b(если|иначе|пока|для|от|до|вернуть|утверждать|становится|попытаться|поймать|выбросить|относится|запустить|дождаться)\\b"
+      "match": "\\b(если|иначе|пока|для|от|до|вернуть|утверждать|становится|попытаться|поймать|выбросить|относится|запустить|дождаться|разобрать)\\b"
+    },
+    "json-format-marker": {
+      "comment": "'JSON' - формат-маркер после 'разобрать' (разобрать JSON <выражение> как <Тип>) - не склоняется, единственный поддержанный формат.",
+      "name": "support.type.rech",
+      "match": "\\bJSON\\b"
     },
     "logical-word-operators": {
       "name": "keyword.operator.word.rech",
@@ -142,7 +148,7 @@
     },
     "builtin-types": {
       "name": "support.type.primitive.rech",
-      "match": "\\b(Строка|Целое|Число|Логическое|Файл|Список|Стопка|Очередь|Словарь)\\b"
+      "match": "\\b(Строка|Целое|Число|Логическое|Файл|Список|Стопка|Очередь|Словарь|ОшибкаРазбора)\\b"
     },
     "operators": {
       "patterns": [
