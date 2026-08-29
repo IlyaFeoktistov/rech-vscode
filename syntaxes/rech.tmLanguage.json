@@ -14,6 +14,7 @@
     { "include": "#json-format-marker" },
     { "include": "#logical-word-operators" },
     { "include": "#visibility-keywords" },
+    { "include": "#abstract-keyword" },
     { "include": "#export-keyword" },
     { "include": "#constructor-keywords" },
     { "include": "#function-declaration" },
@@ -105,6 +106,11 @@
     "visibility-keywords": {
       "name": "storage.modifier.rech",
       "match": "\\b(приватный|приватная|приватное|приватные|публичный|публичная|публичное|публичные)\\b"
+    },
+    "abstract-keyword": {
+      "comment": "'абстрактная'/'абстрактный' перед 'сущность'/'класс' - согласуется по роду с самим ключевым словом, не с именем типа.",
+      "name": "storage.modifier.rech",
+      "match": "\\b(абстрактный|абстрактная|абстрактное|абстрактные)\\b"
     },
     "export-keyword": {
       "comment": "'экспортировать' перед 'функция'/'сущность'/'класс'/'структура' - помечает объявление видимым снаружи разделяемой библиотеки (rech build --lib). Тот же scope, что и visibility-keywords выше - оба модификатор перед объявлением, различие смысла компилятору, не подсветке.",
