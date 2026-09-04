@@ -21,13 +21,16 @@
     { "include": "#entity-declaration" },
     { "include": "#enum-declaration" },
     { "include": "#constant-declaration" },
+    { "include": "#import-declaration" },
     { "include": "#keywords-declaration" },
     { "include": "#prepositions" },
     { "include": "#builtin-types" },
     { "include": "#operators" },
     { "include": "#method-call" },
+    { "include": "#static-member-access" },
     { "include": "#field-access" },
     { "include": "#function-call" },
+    { "include": "#bare-constant-reference" },
     { "include": "#type-name" }
   ],
   "repository": {
@@ -151,6 +154,19 @@
         "2": { "name": "variable.other.constant.rech" }
       }
     },
+    "import-declaration": {
+      "comment": "'использовать <имя>[, <имя> ...] [как <алиас>] из \"<путь>\"' (docs/SPEC.md, раздел 10) - имена/алиасы между 'использовать' и 'из' раньше не выделялись вовсе (репортнуто пользователем - падали под generic-текст, ни function-call - не перед '(' - ни type-name - реагирует только на заглавную). Список смешанный - функция/сущность/константа/перечисление в одной строке, различаем той же эвристикой по регистру, что и везде в грамматике. 'из' как конец региона - и как safety valve конец строки, если 'использовать' без 'из' (незаконченная правка пользователя).",
+      "begin": "\\b(использовать)\\b",
+      "end": "\\b(из)\\b|$",
+      "beginCaptures": { "1": { "name": "keyword.other.rech" } },
+      "endCaptures": { "1": { "name": "keyword.other.preposition.rech" } },
+      "patterns": [
+        { "match": "\\bкак\\b", "name": "keyword.other.rech" },
+        { "match": "\\b[A-ZА-ЯЁ][A-ZА-ЯЁ0-9_]*\\b", "name": "variable.other.constant.rech" },
+        { "match": "\\b[A-ZА-ЯЁ][A-Za-zА-Яа-яЁё0-9_]*\\b", "name": "entity.name.type.rech" },
+        { "match": "\\b[a-zа-яё_][A-Za-zА-Яа-яЁё0-9_]*\\b", "name": "entity.name.function.rech" }
+      ]
+    },
     "keywords-declaration": {
       "name": "keyword.other.rech",
       "match": "\\b(функция|переменная|сущность|класс|структура|имеет|использовать|из|как|внешняя|состояние|вывести|показать|константа|перечисление)\\b"
@@ -166,6 +182,11 @@
     "operators": {
       "patterns": [
         {
+          "comment": "Составное присваивание ('+='/'-='/'*='/'/='/'%=') и '?=' (null-coalescing присваивание) - ДО простых '='/арифметики/'?' ниже, иначе та поглотила бы только свою часть ('+=' стало бы отдельно '+' и '=').",
+          "name": "keyword.operator.assignment.compound.rech",
+          "match": "\\+=|-=|\\*=|/=|%=|\\?="
+        },
+        {
           "name": "keyword.operator.comparison.rech",
           "match": "==|!=|<=|>=|<|>"
         },
@@ -175,7 +196,12 @@
         },
         {
           "name": "keyword.operator.arithmetic.rech",
-          "match": "\\+\\+|--|\\+|-|\\*|/"
+          "match": "\\+\\+|--|\\+|-|\\*|/|%"
+        },
+        {
+          "comment": "'??' (null-coalescing) - ДО одиночного '?' (префикс nullable-типа, '?Тип').",
+          "name": "keyword.operator.nullable.rech",
+          "match": "\\?\\?|\\?"
         },
         {
           "name": "keyword.operator.assignment.rech",
@@ -187,6 +213,18 @@
       "match": "\\.([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)(?=\\s*\\()",
       "captures": {
         "1": { "name": "entity.name.function.rech" }
+      }
+    },
+    "static-member-access": {
+      "comment": "'Тип::имя' (статическое поле/метод/константа сущности, docs/SPEC.md 'Статические поля/методы') - тот же принцип, что и field-access ('.имя') ниже: сам разделитель '::' остаётся без отдельной подсветки (как и '.' у field-access), только имя справа - иначе (без этого правила) оно попало бы под общее правило 'заглавная буква - имя типа' (type-name), даже когда это статическая константа/метод, не тип.",
+      "match": "::([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
+      "captures": {
+        "1": {
+          "patterns": [
+            { "match": "^[A-ZА-ЯЁ][A-ZА-ЯЁ0-9_]*$", "name": "variable.other.constant.rech" },
+            { "match": ".*", "name": "variable.other.member.rech" }
+          ]
+        }
       }
     },
     "field-access": {
@@ -205,6 +243,11 @@
       "comment": "Голый идентификатор перед '(' - вызов функции (обычный, внешний по alias-имени после 'как', или объявление функции/метода - те же 'имя(' по форме). Только с маленькой буквы - имена типов/сущностей (Пользователь(...) в конструкторе 'новый Пользователь(...)') с большой и остаются entity.name.type через отдельное правило ниже.",
       "match": "\\b[a-zа-яё_][A-Za-zА-Яа-яЁё0-9_]*(?=\\s*\\()",
       "name": "entity.name.function.rech"
+    },
+    "bare-constant-reference": {
+      "comment": "Голое имя ЗАГЛАВНЫМИ_БУКВАМИ вне '.'/'::' (использование модульной 'константа ИМЯ' внутри тела функции, без получателя) - репортнуто пользователем как подсвечивающееся entity.name.type (обычное правило для 'начинается с заглавной'), хотя это не тип. ОБЯЗАТЕЛЬНО с подчёркиванием (в отличие от field-access/static-member-access, где после '.'/'::' любое ВСЁ_ЗАГЛАВНЫМИ однозначно константа) - без этого требования голое 'T'/'K' (однобуквенный параметр типа generic, 'Стопка<T>') тоже попал бы сюда вместо type-name.",
+      "match": "\\b[A-ZА-ЯЁ][A-ZА-ЯЁ0-9]*_[A-ZА-ЯЁ0-9_]*\\b",
+      "name": "variable.other.constant.rech"
     },
     "type-name": {
       "name": "entity.name.type.rech",
