@@ -41,6 +41,17 @@ let outputChannel;
 let terminal;
 let lspClient;
 
+// lspSeverityMap - LSP DiagnosticSeverity (1-индексный, см. LSP spec и
+// internal/lsp/diagnostics.go/deprecated.go) -> vscode.DiagnosticSeverity
+// (0-индексный) - числа НЕ совпадают между двумя перечислениями, нужен
+// явный перевод (тот же принцип, что и у completionKindMap ниже).
+const lspSeverityMap = {
+  1: vscode.DiagnosticSeverity.Error,
+  2: vscode.DiagnosticSeverity.Warning,
+  3: vscode.DiagnosticSeverity.Information,
+  4: vscode.DiagnosticSeverity.Hint,
+};
+
 function activate(context) {
   diagnostics = vscode.languages.createDiagnosticCollection('rech');
   outputChannel = vscode.window.createOutputChannel('Rech');
@@ -55,14 +66,20 @@ function activate(context) {
   lspDiagnostics = vscode.languages.createDiagnosticCollection('rech-lsp');
   lspClient.onNotification('textDocument/publishDiagnostics', (params) => {
     const uri = vscode.Uri.parse(params.uri);
-    const diags = (params.diagnostics || []).map(
-      (d) =>
-        new vscode.Diagnostic(
-          new vscode.Range(d.range.start.line, d.range.start.character, d.range.end.line, d.range.end.character),
-          d.message,
-          d.severity === 1 ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning
-        )
-    );
+    const diags = (params.diagnostics || []).map((d) => {
+      const diag = new vscode.Diagnostic(
+        new vscode.Range(d.range.start.line, d.range.start.character, d.range.end.line, d.range.end.character),
+        d.message,
+        lspSeverityMap[d.severity] ?? vscode.DiagnosticSeverity.Warning
+      );
+      // LSP DiagnosticTag (1 - Unnecessary, 2 - Deprecated, см. internal/
+      // lsp/deprecated.go) - те же числа, что и vscode.DiagnosticTag, можно
+      // передать как есть, без перевода.
+      if (Array.isArray(d.tags) && d.tags.length > 0) {
+        diag.tags = d.tags;
+      }
+      return diag;
+    });
     lspDiagnostics.set(uri, diags);
   });
   context.subscriptions.push(diagnostics, outputChannel, lspDiagnostics);
