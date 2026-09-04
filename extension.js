@@ -102,6 +102,9 @@ function activate(context) {
     vscode.languages.registerHoverProvider('rech', { provideHover: provideRechHover }),
     vscode.languages.registerDefinitionProvider('rech', { provideDefinition: provideRechDefinition }),
     vscode.languages.registerImplementationProvider('rech', { provideImplementation: provideRechImplementation }),
+    vscode.languages.registerCodeActionsProvider('rech', { provideCodeActions: provideRechCodeActions }, {
+      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
+    }),
     vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.')
   );
 }
@@ -487,6 +490,40 @@ async function provideRechImplementation(document, position) {
         new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character)
       )
   );
+}
+
+// provideRechCodeActions - "textDocument/codeAction" (internal/lsp/
+// codeaction.go) - сейчас единственный вид - автоимпорт ("Импортировать X
+// из..."). Сервер решает не по диапазону/списку диагностик запроса (в
+// отличие от типичного LSP-сервера - у документа только одна диагностика
+// сразу, см. package doc internal/lsp/document.go), поэтому document/range
+// пробрасываются, но их содержимое сервер игнорирует - контракт метода
+// всё равно требует их передать.
+async function provideRechCodeActions(document, range) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/codeAction', {
+    textDocument: { uri: document.uri.toString() },
+    range: { start: { line: range.start.line, character: range.start.character }, end: { line: range.end.line, character: range.end.character } },
+    context: { diagnostics: [] },
+  });
+  if (!resp || !Array.isArray(resp.result)) {
+    return [];
+  }
+  return resp.result.map((item) => {
+    const action = new vscode.CodeAction(item.title, vscode.CodeActionKind.QuickFix);
+    const workspaceEdit = new vscode.WorkspaceEdit();
+    for (const [uri, edits] of Object.entries(item.edit.changes)) {
+      for (const e of edits) {
+        workspaceEdit.replace(
+          vscode.Uri.parse(uri),
+          new vscode.Range(e.range.start.line, e.range.start.character, e.range.end.line, e.range.end.character),
+          e.newText
+        );
+      }
+    }
+    action.edit = workspaceEdit;
+    return action;
+  });
 }
 
 // completionKindMap - LSP CompletionItemKind (1-индексный, см.
