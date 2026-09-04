@@ -25,6 +25,10 @@
         "aliases": ["Rech", "rech"],
         "extensions": [".rech"],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "yaml",
+        "extensions": [".rechproj"]
       }
     ],
     "grammars": [
