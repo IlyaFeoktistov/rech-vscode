@@ -36,6 +36,7 @@ const path = require('path');
 const cp = require('child_process');
 
 let diagnostics;
+let lspDiagnostics;
 let outputChannel;
 let terminal;
 let lspClient;
@@ -44,7 +45,51 @@ function activate(context) {
   diagnostics = vscode.languages.createDiagnosticCollection('rech');
   outputChannel = vscode.window.createOutputChannel('Rech');
   lspClient = new LspClient();
-  context.subscriptions.push(diagnostics, outputChannel);
+  // lspDiagnostics - ОТДЕЛЬНАЯ коллекция от diagnostics (та заполняется
+  // разбором вывода "Rech: собрать"/"rech.build", см. runCaptured/
+  // parseDiagnostics) - у LSP-диагностики (publishDiagnostics, живая, на
+  // каждое открытие/изменение файла) свой жизненный цикл, не связанный с
+  // ручным запуском сборки; общая коллекция перепутала бы источники (пустой
+  // список от LSP после успешного анализа стёр бы диагностику от build, и
+  // наоборот).
+  lspDiagnostics = vscode.languages.createDiagnosticCollection('rech-lsp');
+  lspClient.onNotification('textDocument/publishDiagnostics', (params) => {
+    const uri = vscode.Uri.parse(params.uri);
+    const diags = (params.diagnostics || []).map(
+      (d) =>
+        new vscode.Diagnostic(
+          new vscode.Range(d.range.start.line, d.range.start.character, d.range.end.line, d.range.end.character),
+          d.message,
+          d.severity === 1 ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning
+        )
+    );
+    lspDiagnostics.set(uri, diags);
+  });
+  context.subscriptions.push(diagnostics, outputChannel, lspDiagnostics);
+
+  // Синхронизация документа с LSP-сервером ПРОАКТИВНО (не только лениво,
+  // перед hover/definition/completion, см. syncDocument) - только так
+  // диагностика (подчёркивание ошибки) обновляется по мере набора текста,
+  // а не только в момент, когда пользователь что-то дополнительно
+  // запросил (навёл мышь/нажал Ctrl). Фильтр по languageId - не гонять
+  // сервер на файлах других языков, открытых в той же рабочей области.
+  for (const doc of vscode.workspace.textDocuments) {
+    if (doc.languageId === 'rech') {
+      lspClient.syncDocument(doc);
+    }
+  }
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument((doc) => {
+      if (doc.languageId === 'rech') {
+        lspClient.syncDocument(doc);
+      }
+    }),
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      if (e.document.languageId === 'rech') {
+        lspClient.syncDocument(e.document);
+      }
+    })
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('rech.build', () => runCaptured('build')),
@@ -56,6 +101,7 @@ function activate(context) {
     vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
     vscode.languages.registerHoverProvider('rech', { provideHover: provideRechHover }),
     vscode.languages.registerDefinitionProvider('rech', { provideDefinition: provideRechDefinition }),
+    vscode.languages.registerImplementationProvider('rech', { provideImplementation: provideRechImplementation }),
     vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.')
   );
 }
@@ -283,6 +329,16 @@ class LspClient {
     this.pending = new Map();
     this.nextId = 1;
     this.knownDocs = new Set();
+    this.notificationHandlers = new Map();
+  }
+
+  // onNotification регистрирует обработчик уведомления сервер->клиент
+  // (сообщение без "id" - см. onData) - используется для
+  // "textDocument/publishDiagnostics" (диагностика, activate ниже), не
+  // задействуется для запрос/ответ (hover/definition/completion/
+  // implementation - те решаются через this.pending, по "id").
+  onNotification(method, handler) {
+    this.notificationHandlers.set(method, handler);
   }
 
   ensureStarted() {
@@ -332,6 +388,8 @@ class LspClient {
       if (msg.id !== undefined && this.pending.has(msg.id)) {
         this.pending.get(msg.id)(msg);
         this.pending.delete(msg.id);
+      } else if (msg.id === undefined && msg.method && this.notificationHandlers.has(msg.method)) {
+        this.notificationHandlers.get(msg.method)(msg.params);
       }
     }
   }
@@ -407,6 +465,27 @@ async function provideRechDefinition(document, position) {
   return new vscode.Location(
     vscode.Uri.parse(uri),
     new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character)
+  );
+}
+
+// provideRechImplementation - "textDocument/implementation" (internal/lsp/
+// implementation.go) - в отличие от provideRechDefinition, result - МАССИВ
+// локаций (интерфейс обычно реализован не одной сущностью), не одна.
+async function provideRechImplementation(document, position) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/implementation', {
+    textDocument: { uri: document.uri.toString() },
+    position: { line: position.line, character: position.character },
+  });
+  if (!resp || !Array.isArray(resp.result)) {
+    return [];
+  }
+  return resp.result.map(
+    ({ uri, range }) =>
+      new vscode.Location(
+        vscode.Uri.parse(uri),
+        new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character)
+      )
   );
 }
 
