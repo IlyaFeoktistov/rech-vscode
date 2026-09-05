@@ -119,6 +119,8 @@ function activate(context) {
     vscode.languages.registerHoverProvider('rech', { provideHover: provideRechHover }),
     vscode.languages.registerDefinitionProvider('rech', { provideDefinition: provideRechDefinition }),
     vscode.languages.registerImplementationProvider('rech', { provideImplementation: provideRechImplementation }),
+    vscode.languages.registerReferenceProvider('rech', { provideReferences: provideRechReferences }),
+    vscode.languages.registerDocumentHighlightProvider('rech', { provideDocumentHighlights: provideRechDocumentHighlights }),
     vscode.languages.registerCodeActionsProvider('rech', { provideCodeActions: provideRechCodeActions }, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
     }),
@@ -506,6 +508,57 @@ async function provideRechImplementation(document, position) {
       new vscode.Location(
         vscode.Uri.parse(uri),
         new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character)
+      )
+  );
+}
+
+// provideRechReferences - "textDocument/references" (internal/lsp/
+// occurrences.go) - ограничено ТЕКУЩИМ документом (сервер сам это решает,
+// не расширение) - переменная/параметр/функция/сущность/константа модуля;
+// у переменной сюда попадают и её падежные словоформы ("паролем" - ссылка
+// на переменную "пароль"), не только буквальное совпадение текста. Член
+// сущности (receiver.поле) не поддержан - сервер вернёт пустой список (см.
+// package doc occurrences.go).
+async function provideRechReferences(document, position) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/references', {
+    textDocument: { uri: document.uri.toString() },
+    position: { line: position.line, character: position.character },
+    context: { includeDeclaration: true },
+  });
+  if (!resp || !Array.isArray(resp.result)) {
+    return [];
+  }
+  return resp.result.map(
+    ({ uri, range }) =>
+      new vscode.Location(
+        vscode.Uri.parse(uri),
+        new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character)
+      )
+  );
+}
+
+// provideRechDocumentHighlights - "textDocument/documentHighlight" (internal/
+// lsp/occurrences.go) - то же множество вхождений, что и
+// provideRechReferences, но без "uri" (запрос документ-локальный по
+// определению) - именно эта фича даёт то, что встроенная в VS Code
+// подсветка "одинаковых слов" не умеет сама по себе: выделение переменной
+// "пароль" подсвечивает и её словоформы ("паролем"), не только буквальные
+// совпадения текста.
+async function provideRechDocumentHighlights(document, position) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/documentHighlight', {
+    textDocument: { uri: document.uri.toString() },
+    position: { line: position.line, character: position.character },
+  });
+  if (!resp || !Array.isArray(resp.result)) {
+    return [];
+  }
+  return resp.result.map(
+    ({ range, kind }) =>
+      new vscode.DocumentHighlight(
+        new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character),
+        kind === 2 ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Text
       )
   );
 }
