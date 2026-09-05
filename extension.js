@@ -122,7 +122,8 @@ function activate(context) {
     vscode.languages.registerCodeActionsProvider('rech', { provideCodeActions: provideRechCodeActions }, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
     }),
-    vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.')
+    vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.'),
+    vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses })
   );
 }
 
@@ -540,6 +541,46 @@ async function provideRechCodeActions(document, range) {
     }
     action.edit = workspaceEdit;
     return action;
+  });
+}
+
+// provideRechCodeLenses - "textDocument/codeLens" (internal/lsp/
+// codelens.go) - "N ссылок" над каждым объявлением документа. Сервер уже
+// присылает готовую команду (title + все locations) на каждый CodeLens -
+// resolveProvider не объявлен (server.go, initialize), значит клиенту не
+// нужно вызывать codeLens/resolve отдельно, разбора command.arguments
+// здесь достаточно. "editor.action.showReferences" - встроенная команда
+// VS Code (uri, position, locations) - открывает панель "Найдено ссылок",
+// ничего специфичного для Rech в ней исполнять не нужно.
+async function provideRechCodeLenses(document) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/codeLens', {
+    textDocument: { uri: document.uri.toString() },
+  });
+  if (!resp || !Array.isArray(resp.result)) {
+    return [];
+  }
+  return resp.result.map((item) => {
+    const range = new vscode.Range(
+      item.range.start.line, item.range.start.character,
+      item.range.end.line, item.range.end.character
+    );
+    const [uri, position, locations] = item.command.arguments;
+    return new vscode.CodeLens(range, {
+      title: item.command.title,
+      command: item.command.command,
+      arguments: [
+        vscode.Uri.parse(uri),
+        new vscode.Position(position.line, position.character),
+        locations.map(
+          (loc) =>
+            new vscode.Location(
+              vscode.Uri.parse(loc.uri),
+              new vscode.Range(loc.range.start.line, loc.range.start.character, loc.range.end.line, loc.range.end.character)
+            )
+        ),
+      ],
+    });
   });
 }
 
