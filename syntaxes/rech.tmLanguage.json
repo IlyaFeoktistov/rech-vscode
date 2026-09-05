@@ -14,6 +14,7 @@
     { "include": "#json-format-marker" },
     { "include": "#logical-word-operators" },
     { "include": "#visibility-keywords" },
+    { "include": "#static-keyword" },
     { "include": "#abstract-keyword" },
     { "include": "#export-keyword" },
     { "include": "#constructor-keywords" },
@@ -108,7 +109,12 @@
     },
     "visibility-keywords": {
       "name": "storage.modifier.rech",
-      "match": "\\b(приватный|приватная|приватное|приватные|публичный|публичная|публичное|публичные)\\b"
+      "match": "\\b(приватный|приватная|приватное|приватные|публичный|публичная|публичное|публичные|защищённый|защищённая|защищённое|защищённые)\\b"
+    },
+    "static-keyword": {
+      "comment": "'статический'/'статическая'/... перед полем/методом сущности (docs/SPEC.md, 'Статические поля/методы') - согласуется по роду/числу с именем поля/метода, тем же принципом, что и visibility-keywords.",
+      "name": "storage.modifier.rech",
+      "match": "\\b(статический|статическая|статическое|статические)\\b"
     },
     "abstract-keyword": {
       "comment": "'абстрактная'/'абстрактный' перед 'сущность'/'класс' - согласуется по роду с самим ключевым словом, не с именем типа.",
