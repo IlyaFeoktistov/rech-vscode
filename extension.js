@@ -125,7 +125,8 @@ function activate(context) {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
     }),
     vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.'),
-    vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses })
+    vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses }),
+    vscode.languages.registerDocumentFormattingEditProvider('rech', { provideDocumentFormattingEdits: provideRechDocumentFormattingEdits })
   );
 }
 
@@ -140,6 +141,34 @@ function deactivate() {
 
 function rechPath() {
   return vscode.workspace.getConfiguration('rech').get('path') || 'rech';
+}
+
+// provideRechDocumentFormattingEdits - "rech fmt <файл>" (docs/ROADMAP.md,
+// Шаг 89 - канонический отступ, как gofmt) без "--write" - вывод в stdout,
+// вставляется ОДНИМ TextEdit на весь документ (сам компилятор форматирует
+// целый файл, не диапазон - частичное форматирование выделения не
+// поддержано никак). Работает через "editor.formatOnSave" (штатная
+// настройка VS Code, не своя - расширение только регистрирует провайдер) и
+// команду "Format Document" - обе включаются/выключаются настройкой
+// "rech.format.enable" здесь, а не отменой самой регистрации провайдера
+// (иначе смена настройки потребовала бы перезапуска окна). Компилятор читает
+// файл С ДИСКА (не stdin), поэтому несохранённые правки сохраняются
+// заранее - тот же принцип, что и у saveIfRechEditor в остальных командах.
+async function provideRechDocumentFormattingEdits(document) {
+  if (!vscode.workspace.getConfiguration('rech').get('format.enable', true)) {
+    return [];
+  }
+  if (document.isDirty) {
+    await document.save();
+  }
+  const result = await execRech(['fmt', document.fileName]);
+  if (result.code !== 0) {
+    outputChannel.appendLine(`$ ${rechPath()} fmt ${document.fileName}`);
+    outputChannel.append(result.stderr);
+    return [];
+  }
+  const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
+  return [vscode.TextEdit.replace(fullRange, result.stdout)];
 }
 
 // saveIfRechEditor сохраняет активный редактор, если это .rech-файл -
