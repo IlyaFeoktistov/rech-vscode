@@ -97,6 +97,19 @@
     "numbers": {
       "patterns": [
         {
+          "comment": "0x/0o/0b (internal/lexer/lexer.go, readNumber) - ДО обычного integer/float ниже, иначе 'x'/'o'/'b' после ведущего 0 не даёт \\b сработать вовсе (0 и следующая буква - оба \\w) и литерал остаётся неподсвеченным.",
+          "name": "constant.numeric.integer.hexadecimal.rech",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.octal.rech",
+          "match": "\\b0[oO][0-7]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.binary.rech",
+          "match": "\\b0[bB][01]+\\b"
+        },
+        {
           "name": "constant.numeric.float.rech",
           "match": "\\b[0-9]+\\.[0-9]+\\b"
         },
