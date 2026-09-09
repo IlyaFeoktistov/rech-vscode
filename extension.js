@@ -56,6 +56,28 @@ function activate(context) {
   diagnostics = vscode.languages.createDiagnosticCollection('rech');
   outputChannel = vscode.window.createOutputChannel('Rech');
   lspClient = new LspClient();
+
+  context.subscriptions.push(
+    diagnostics, outputChannel,
+    vscode.commands.registerCommand('rech.build', () => runCaptured('build')),
+    vscode.commands.registerCommand('rech.buildLib', () => runCaptured('build', { extraArgs: ['--lib'] })),
+    vscode.commands.registerCommand('rech.run', () => runInTerminal('run')),
+    vscode.commands.registerCommand('rech.test', () => runCaptured('test', { wholeProject: true })),
+    vscode.commands.registerCommand('rech.debug', () => startDebugging()),
+    vscode.debug.registerDebugConfigurationProvider('rech', new RechDebugConfigurationProvider()),
+    vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
+    vscode.languages.registerDocumentFormattingEditProvider('rech', { provideDocumentFormattingEdits: provideRechDocumentFormattingEdits })
+  );
+
+  // rech.lsp.enable - читается ОДИН РАЗ, при activate (не подписка на
+  // onDidChangeConfiguration) - смена значения требует "Reload Window", как
+  // и описано в самой настройке (package.json): отписать уже
+  // зарегистрированные провайдеры/остановить процесс "rech lsp" на лету
+  // не стоит усложнения ради экономии одной перезагрузки окна.
+  if (!vscode.workspace.getConfiguration('rech').get('lsp.enable', true)) {
+    return;
+  }
+
   // lspDiagnostics - ОТДЕЛЬНАЯ коллекция от diagnostics (та заполняется
   // разбором вывода "Rech: собрать"/"rech.build", см. runCaptured/
   // parseDiagnostics) - у LSP-диагностики (publishDiagnostics, живая, на
@@ -82,7 +104,7 @@ function activate(context) {
     });
     lspDiagnostics.set(uri, diags);
   });
-  context.subscriptions.push(diagnostics, outputChannel, lspDiagnostics);
+  context.subscriptions.push(lspDiagnostics);
 
   // Синхронизация документа с LSP-сервером ПРОАКТИВНО (не только лениво,
   // перед hover/definition/completion, см. syncDocument) - только так
@@ -109,13 +131,6 @@ function activate(context) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('rech.build', () => runCaptured('build')),
-    vscode.commands.registerCommand('rech.buildLib', () => runCaptured('build', { extraArgs: ['--lib'] })),
-    vscode.commands.registerCommand('rech.run', () => runInTerminal('run')),
-    vscode.commands.registerCommand('rech.test', () => runCaptured('test', { wholeProject: true })),
-    vscode.commands.registerCommand('rech.debug', () => startDebugging()),
-    vscode.debug.registerDebugConfigurationProvider('rech', new RechDebugConfigurationProvider()),
-    vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
     vscode.languages.registerHoverProvider('rech', { provideHover: provideRechHover }),
     vscode.languages.registerDefinitionProvider('rech', { provideDefinition: provideRechDefinition }),
     vscode.languages.registerImplementationProvider('rech', { provideImplementation: provideRechImplementation }),
@@ -125,8 +140,7 @@ function activate(context) {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
     }),
     vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.'),
-    vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses }),
-    vscode.languages.registerDocumentFormattingEditProvider('rech', { provideDocumentFormattingEdits: provideRechDocumentFormattingEdits })
+    vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses })
   );
 }
 
@@ -141,6 +155,26 @@ function deactivate() {
 
 function rechPath() {
   return vscode.workspace.getConfiguration('rech').get('path') || 'rech';
+}
+
+// traceLspMessage - "rech.lsp.trace.server" (тот же принцип именования,
+// что и стандартная "<язык>.trace.server" у расширений на базе
+// vscode-languageclient, package.json) - "off" молчит совсем, "messages"
+// печатает только метод/id (без параметров/результата - которые могут
+// быть большими и малополезными без "verbose"), "verbose" - всё сообщение
+// целиком. direction - "->" (клиент шлёт серверу) или "<-" (ответ/
+// уведомление сервера).
+function traceLspMessage(direction, msg) {
+  const level = vscode.workspace.getConfiguration('rech').get('lsp.trace.server', 'off');
+  if (level === 'off' || !outputChannel) {
+    return;
+  }
+  if (level === 'verbose') {
+    outputChannel.appendLine(`[LSP ${direction}] ${JSON.stringify(msg)}`);
+    return;
+  }
+  const label = msg.method ? msg.method : `ответ #${msg.id}`;
+  outputChannel.appendLine(`[LSP ${direction}] ${label}${msg.id !== undefined && msg.method ? ` (#${msg.id})` : ''}`);
 }
 
 // provideRechDocumentFormattingEdits - "rech fmt <файл>" (docs/ROADMAP.md,
@@ -437,6 +471,7 @@ class LspClient {
       } catch {
         continue;
       }
+      traceLspMessage('<-', msg);
       if (msg.id !== undefined && this.pending.has(msg.id)) {
         this.pending.get(msg.id)(msg);
         this.pending.delete(msg.id);
@@ -450,6 +485,7 @@ class LspClient {
     if (!this.proc) {
       return;
     }
+    traceLspMessage('->', msg);
     const b = Buffer.from(JSON.stringify(msg), 'utf8');
     this.proc.stdin.write(`Content-Length: ${b.length}\r\n\r\n`);
     this.proc.stdin.write(b);
