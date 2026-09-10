@@ -34,6 +34,8 @@
 const vscode = require('vscode');
 const path = require('path');
 const cp = require('child_process');
+const fs = require('fs');
+const os = require('os');
 
 let diagnostics;
 let lspDiagnostics;
@@ -186,16 +188,28 @@ function traceLspMessage(direction, msg) {
 // команду "Format Document" - обе включаются/выключаются настройкой
 // "rech.format.enable" здесь, а не отменой самой регистрации провайдера
 // (иначе смена настройки потребовала бы перезапуска окна). Компилятор читает
-// файл С ДИСКА (не stdin), поэтому несохранённые правки сохраняются
-// заранее - тот же принцип, что и у saveIfRechEditor в остальных командах.
+// файл С ДИСКА (не stdin) - но НЕ через document.save() (как было раньше):
+// вызов save() ИЗНУТРИ этого же провайдера, пока VS Code вызывает его
+// именно ПОТОМУ, что идёт сохранение ("editor.formatOnSave") - повторный
+// вход в тот же пайплайн сохранения, из-за которого правки как будто
+// откатывались назад при каждом Ctrl+S (репортнуто пользователем - "как
+// будто работает не Ctrl+S, а Ctrl+Z", воспроизводилось только на
+// .rech-файлах). Вместо этого - живой текст буфера (document.getText(),
+// а не то, что уже на диске) пишется во ВРЕМЕННЫЙ файл, форматируется ОН,
+// реальный файл документа этой функцией не трогается вовсе - сохраняет
+// его дальше сам VS Code, как обычно, ровно один раз.
 async function provideRechDocumentFormattingEdits(document) {
   if (!vscode.workspace.getConfiguration('rech').get('format.enable', true)) {
     return [];
   }
-  if (document.isDirty) {
-    await document.save();
+  const tmpFile = path.join(os.tmpdir(), `rech-fmt-${process.pid}-${Date.now()}.rech`);
+  let result;
+  try {
+    fs.writeFileSync(tmpFile, document.getText(), 'utf8');
+    result = await execRech(['fmt', tmpFile]);
+  } finally {
+    fs.unlink(tmpFile, () => {});
   }
-  const result = await execRech(['fmt', document.fileName]);
   if (result.code !== 0) {
     outputChannel.appendLine(`$ ${rechPath()} fmt ${document.fileName}`);
     outputChannel.append(result.stderr);

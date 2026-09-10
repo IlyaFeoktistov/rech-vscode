@@ -19,6 +19,7 @@
     { "include": "#constructor-keywords" },
     { "include": "#function-declaration" },
     { "include": "#entity-declaration" },
+    { "include": "#interface-declaration" },
     { "include": "#enum-declaration" },
     { "include": "#constant-declaration" },
     { "include": "#import-declaration" },
@@ -178,6 +179,14 @@
         "2": { "name": "entity.name.type.rech" }
       }
     },
+    "interface-declaration": {
+      "comment": "'интерфейс Имя' (docs/SPEC.md, интерфейсы) - НАЙДЕНО (репортнуто пользователем): слово 'интерфейс' не подсвечивалось вовсе, как и 'наследует'/'реализует' (см. keywords-declaration ниже) - ни разу не было заведено в грамматике с момента появления фичи в компиляторе.",
+      "match": "\\b(интерфейс)\\s+([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.rech" },
+        "2": { "name": "entity.name.type.rech" }
+      }
+    },
     "enum-declaration": {
       "match": "\\b(перечисление)\\s+([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
       "captures": {
@@ -208,7 +217,7 @@
     },
     "keywords-declaration": {
       "name": "keyword.other.rech",
-      "match": "\\b(функция|переменная|сущность|класс|структура|имеет|использовать|из|как|внешняя|состояние|вывести|показать|константа|перечисление)\\b"
+      "match": "\\b(функция|переменная|сущность|класс|структура|имеет|использовать|из|как|внешняя|состояние|вывести|показать|константа|перечисление|наследует|реализует)\\b"
     },
     "prepositions": {
       "name": "keyword.other.preposition.rech",
