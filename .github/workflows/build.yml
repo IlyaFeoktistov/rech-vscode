@@ -1,0 +1,27 @@
+name: Build
+
+# При каждом пуше в main - собирает .vsix (vsce package) и обновляет один
+# и тот же релиз с тегом "latest" (softprops/action-gh-release с явным
+# tag_name делает upsert - если релиз с этим тегом уже есть, обновляет
+# его файлы, а не создаёт новый) - так кнопка "скачать" на сайте всегда
+# ведёт на актуальную сборку, без ручных версий/тегов.
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx --yes @vscode/vsce package --allow-missing-repository
+      - name: Обновить релиз "latest"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Последняя сборка (main)
+          body: Автоматическая сборка расширения из ветки main - не привязана к версии.
+          files: "*.vsix"
