@@ -24,11 +24,20 @@
         "id": "rech",
         "aliases": ["Rech", "rech"],
         "extensions": [".rech"],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": { "light": "./icons/rech-file.png", "dark": "./icons/rech-file.png" }
       },
       {
-        "id": "yaml",
-        "extensions": [".rechproj"]
+        "id": "rechproj",
+        "aliases": ["Rech Project"],
+        "extensions": [".rechproj"],
+        "icon": { "light": "./icons/rech-file.png", "dark": "./icons/rech-file.png" }
+      },
+      {
+        "id": "rechi",
+        "aliases": ["Rech Interface"],
+        "extensions": [".rechi"],
+        "icon": { "light": "./icons/rech-file.png", "dark": "./icons/rech-file.png" }
       }
     ],
     "grammars": [
@@ -36,6 +45,23 @@
         "language": "rech",
         "scopeName": "source.rech",
         "path": "./syntaxes/rech.tmLanguage.json"
+      },
+      {
+        "language": "rechi",
+        "scopeName": "source.rechi",
+        "path": "./syntaxes/rechi.tmLanguage.json"
+      },
+      {
+        "language": "rechproj",
+        "scopeName": "source.rechproj",
+        "path": "./syntaxes/rechproj.tmLanguage.json"
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "rech-icons",
+        "label": "Rech (значки для .rech/.rechproj/.rechi)",
+        "path": "./icons/rech-icon-theme.json"
       }
     ],
     "commands": [
