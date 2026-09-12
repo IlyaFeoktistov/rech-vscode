@@ -1,17 +1,29 @@
 name: Build
 
-# При каждом пуше в main - собирает .vsix (vsce package) и обновляет один
-# и тот же релиз с тегом "latest" (softprops/action-gh-release с явным
-# tag_name делает upsert - если релиз с этим тегом уже есть, обновляет
-# его файлы, а не создаёт новый) - так кнопка "скачать" на сайте всегда
-# ведёт на актуальную сборку, без ручных версий/тегов.
+# На PR - только проверка, что .vsix вообще собирается (status check для
+# branch protection). При пуше в main (после мёржа PR) - тот же сборочный
+# шаг ПЛЮС публикация: обновляет один и тот же релиз с тегом "latest"
+# (softprops/action-gh-release с явным tag_name делает upsert - если
+# релиз с этим тегом уже есть, обновляет его файлы, а не создаёт новый) -
+# так кнопка "скачать" на сайте всегда ведёт на актуальную сборку, без
+# ручных версий/тегов.
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx --yes @vscode/vsce package --allow-missing-repository
+
+  publish:
+    needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
