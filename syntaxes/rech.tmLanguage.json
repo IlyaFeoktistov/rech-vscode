@@ -13,10 +13,13 @@
     { "include": "#json-format-marker" },
     { "include": "#logical-word-operators" },
     { "include": "#visibility-keywords" },
+    { "include": "#internal-keyword" },
     { "include": "#static-keyword" },
     { "include": "#abstract-keyword" },
     { "include": "#export-keyword" },
+    { "include": "#async-keyword" },
     { "include": "#constructor-keywords" },
+    { "include": "#operator-declaration" },
     { "include": "#function-declaration" },
     { "include": "#entity-declaration" },
     { "include": "#interface-declaration" },
@@ -130,7 +133,7 @@
     },
     "keywords-control": {
       "name": "keyword.control.rech",
-      "match": "\\b(если|иначе|пока|для|от|до|прервать|продолжить|вернуть|утверждать|становится|попытаться|поймать|окончательно|выбросить|относится|запустить|дождаться|разобрать|сериализовать|тип|выбрать|когда)\\b"
+      "match": "\\b(если|иначе|пока|для|от|до|прервать|продолжить|вернуть|утверждать|становится|попытаться|поймать|окончательно|выбросить|относится|запустить|дождаться|поручить|разобрать|сериализовать|тип|выбрать|когда)\\b"
     },
     "json-format-marker": {
       "comment": "'JSON'/'XML'/'YAML'/'PROTOBUF' - формат-маркер после 'разобрать'/'сериализовать' (разобрать JSON/XML/YAML/PROTOBUF <выражение> [как <Тип>]) - не склоняется.",
@@ -144,6 +147,11 @@
     "visibility-keywords": {
       "name": "storage.modifier.rech",
       "match": "\\b(приватный|приватная|приватное|приватные|публичный|публичная|публичное|публичные|защищённый|защищённая|защищённое|защищённые)\\b"
+    },
+    "internal-keyword": {
+      "comment": "'внутренний'/'внутренняя'/'внутреннее' - видимость верхнего уровня файла (docs/SPEC.md, раздел 10 'Импорты', 'Модульная инкапсуляция') - видно всему .rechproj-проекту, не потребителям зависимости.",
+      "name": "storage.modifier.rech",
+      "match": "\\b(внутренний|внутренняя|внутреннее)\\b"
     },
     "static-keyword": {
       "comment": "'статический'/'статическая'/... перед полем/методом сущности (docs/SPEC.md, 'Статические поля/методы') - согласуется по роду/числу с именем поля/метода, тем же принципом, что и visibility-keywords.",
@@ -160,9 +168,22 @@
       "name": "storage.modifier.rech",
       "match": "\\bэкспортировать\\b"
     },
+    "async-keyword": {
+      "comment": "'асинхронная' перед 'функция' - 'дождаться имя(...)' спавнит на планировщике корутин и сразу ждёт результат, 'поручить имя(...)' - спавнит фоново без ожидания (keywords-control), прямой вызов без обоих - обычный синхронный вызов. Согласуется только с 'функция' (женский род), тем же принципом, что и visibility-keywords.",
+      "name": "storage.modifier.rech",
+      "match": "\\b(асинхронный|асинхронная|асинхронное|асинхронные)\\b"
+    },
     "constructor-keywords": {
       "name": "keyword.other.new.rech",
       "match": "\\b(новый|новая|новое|новые)\\b"
+    },
+    "operator-declaration": {
+      "comment": "'статический публичный оператор +(...)' - перегрузка бинарного оператора (docs/SPEC.md, 'Перегрузка операторов') - 'оператор' + один из '==|!=|<=|>=|+|-|*|/|%|<|>' вместо обычного имени метода.",
+      "match": "\\b(оператор)\\s*(==|!=|<=|>=|[-+*/%<>])",
+      "captures": {
+        "1": { "name": "keyword.other.rech" },
+        "2": { "name": "entity.name.function.rech" }
+      }
     },
     "function-declaration": {
       "match": "\\b(функция)\\s+([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
