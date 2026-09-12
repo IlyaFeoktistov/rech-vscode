@@ -3,7 +3,8 @@
     "_file": { "iconPath": "./generic-file.png" },
     "_folder": { "iconPath": "./generic-folder.png" },
     "_folder_open": { "iconPath": "./generic-folder-open.png" },
-    "_rech_file": { "iconPath": "./rech-file.png" }
+    "_rech_file": { "iconPath": "./rech-file-dark.png" },
+    "_rech_file_light": { "iconPath": "./rech-file-light.png" }
   },
   "file": "_file",
   "folder": "_folder",
@@ -12,5 +13,12 @@
     "rech": "_rech_file",
     "rechproj": "_rech_file",
     "rechi": "_rech_file"
+  },
+  "light": {
+    "fileExtensions": {
+      "rech": "_rech_file_light",
+      "rechproj": "_rech_file_light",
+      "rechi": "_rech_file_light"
+    }
   }
 }

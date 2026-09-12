@@ -2,7 +2,7 @@
   "name": "rech",
   "displayName": "Rech",
   "description": "Подсветка синтаксиса и команды сборки/запуска для языка Rech",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "publisher": "ilyafeoktistov",
   "author": "Ilya Feoktistov",
   "license": "SEE LICENSE IN https://github.com/IlyaFeoktistov/Rech",
@@ -25,19 +25,19 @@
         "aliases": ["Rech", "rech"],
         "extensions": [".rech"],
         "configuration": "./language-configuration.json",
-        "icon": { "light": "./icons/rech-file.png", "dark": "./icons/rech-file.png" }
+        "icon": { "light": "./icons/rech-file-light.png", "dark": "./icons/rech-file-dark.png" }
       },
       {
         "id": "rechproj",
         "aliases": ["Rech Project"],
         "extensions": [".rechproj"],
-        "icon": { "light": "./icons/rech-file.png", "dark": "./icons/rech-file.png" }
+        "icon": { "light": "./icons/rech-file-light.png", "dark": "./icons/rech-file-dark.png" }
       },
       {
         "id": "rechi",
         "aliases": ["Rech Interface"],
         "extensions": [".rechi"],
-        "icon": { "light": "./icons/rech-file.png", "dark": "./icons/rech-file.png" }
+        "icon": { "light": "./icons/rech-file-light.png", "dark": "./icons/rech-file-dark.png" }
       }
     ],
     "grammars": [
