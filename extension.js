@@ -141,8 +141,9 @@ function activate(context) {
     vscode.languages.registerCodeActionsProvider('rech', { provideCodeActions: provideRechCodeActions }, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
     }),
-    vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.'),
-    vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses })
+    vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.', '"'),
+    vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses }),
+    vscode.languages.registerSignatureHelpProvider('rech', { provideSignatureHelp: provideRechSignatureHelp }, '(', ',')
   );
 }
 
@@ -726,6 +727,7 @@ const completionKindMap = {
   6: vscode.CompletionItemKind.Variable,
   7: vscode.CompletionItemKind.Class,
   14: vscode.CompletionItemKind.Keyword,
+  17: vscode.CompletionItemKind.File,
 };
 
 async function provideRechCompletionItems(document, position) {
@@ -747,6 +749,35 @@ async function provideRechCompletionItems(document, position) {
     }
     return ci;
   });
+}
+
+// provideRechSignatureHelp - "textDocument/signatureHelp" (internal/lsp/
+// signaturehelp.go) - ровно одна сигнатура (Rech не различает перегрузки в
+// этом смысле, см. её package doc), activeParameter может выйти за длину
+// parameters (пользователь напечатал больше аргументов, чем объявлено) -
+// vscode сам не подсвечивает ничего в этом случае, безопасно передать как
+// есть.
+async function provideRechSignatureHelp(document, position) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/signatureHelp', {
+    textDocument: { uri: document.uri.toString() },
+    position: { line: position.line, character: position.character },
+  });
+  if (!resp || !resp.result) {
+    return null;
+  }
+  const help = new vscode.SignatureHelp();
+  help.signatures = resp.result.signatures.map((sig) => {
+    const info = new vscode.SignatureInformation(sig.label);
+    info.parameters = sig.parameters.map((p) => new vscode.ParameterInformation(p.label));
+    if (sig.documentation) {
+      info.documentation = new vscode.MarkdownString(sig.documentation);
+    }
+    return info;
+  });
+  help.activeSignature = resp.result.activeSignature;
+  help.activeParameter = resp.result.activeParameter;
+  return help;
 }
 
 module.exports = { activate, deactivate };
