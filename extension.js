@@ -450,8 +450,15 @@ async function discoverTestFiles(controller) {
 // же файл, открытый повторно, обновляет уже существующий TestItem, а не
 // плодит дубликат).
 async function addOrUpdateTestItem(controller, uri) {
+  // range вычисляется ДО createTestItem, не после (даже притом, что item
+  // ещё не в дереве controller.items в момент await) - живой баг VS Code
+  // (microsoft/vscode#138922), когда TestItem.range, выставленный не в тот
+  // же синхронный тик, что и создание, иногда не долетает до гаттера -
+  // безопаснее вообще не оставлять зазора между "item существует" и "item
+  // несёт финальное состояние".
+  const range = await mainFuncRange(uri);
   const item = controller.createTestItem(uri.toString(), vscode.workspace.asRelativePath(uri), uri);
-  item.range = await mainFuncRange(uri);
+  item.range = range;
   controller.items.add(item);
 }
 

@@ -2,7 +2,7 @@
   "name": "rech",
   "displayName": "Rech",
   "description": "Подсветка синтаксиса и команды сборки/запуска для языка Rech",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "publisher": "ilyafeoktistov",
   "author": "Ilya Feoktistov",
   "license": "SEE LICENSE IN https://github.com/IlyaFeoktistov/Rech",
