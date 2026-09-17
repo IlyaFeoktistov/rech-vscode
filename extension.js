@@ -144,7 +144,27 @@ function activate(context) {
     }),
     vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.', '"'),
     vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses }),
-    vscode.languages.registerSignatureHelpProvider('rech', { provideSignatureHelp: provideRechSignatureHelp }, '(', ',')
+    vscode.languages.registerSignatureHelpProvider('rech', { provideSignatureHelp: provideRechSignatureHelp }, '(', ','),
+    // "Перейти к определению" на встроенной функции (internal/lsp/
+    // builtindefinition.go) ведёт на синтетический URI "rech-builtin:///
+    // <имя>.rech" - без своего content-провайдера VS Code просто не смог бы
+    // открыть такой документ вовсе ("Unable to open ..."). Сам текст -
+    // отдельным запросом "rech/builtinSource" (обычный "textDocument/
+    // definition" несёт только Location, не содержимое файла).
+    vscode.workspace.registerTextDocumentContentProvider('rech-builtin', {
+      provideTextDocumentContent: provideRechBuiltinSource,
+    }),
+    // Семантическая подсветка (internal/lsp/semantictokens.go) - вид имени
+    // по РЕАЛЬНОМУ объявлению (функция/тип/переменная/...), не по регистру
+    // первой буквы, как статическая TextMate-грамматика (syntaxes/
+    // rech.tmLanguage.json) - там, где сервер что-то вернул, VS Code сам
+    // отдаёт этому приоритет перед TextMate, иначе (документ с ошибкой
+    // разбора и т. п.) подсветка остаётся прежней.
+    vscode.languages.registerDocumentSemanticTokensProvider(
+      'rech',
+      { provideDocumentSemanticTokens: provideRechDocumentSemanticTokens },
+      rechSemanticTokensLegend
+    )
   );
 }
 
@@ -560,6 +580,39 @@ async function provideRechHover(document, position) {
     return null;
   }
   return new vscode.Hover(new vscode.MarkdownString(resp.result.contents.value));
+}
+
+// rechSemanticTokensLegend - ДОЛЖНА буквально совпадать (состав и порядок)
+// с internal/lsp/server.go, semanticTokenTypes/semanticTokenModifiers -
+// индекс имени в этом списке и есть числовое значение, которым сервер
+// кодирует тип/модификатор каждого токена (самого текста легенды в ответе
+// "textDocument/semanticTokens/full" нет, только числа).
+const rechSemanticTokensLegend = new vscode.SemanticTokensLegend(
+  ['function', 'type', 'variable', 'parameter', 'property', 'enumMember'],
+  ['readonly']
+);
+
+// provideRechDocumentSemanticTokens - "data" сервера (internal/lsp/
+// semantictokens.go, encodeSemanticTokens) уже в стандартном LSP-формате
+// delta-кодирования - том же самом, что ожидает конструктор
+// vscode.SemanticTokens, поэтому оборачивается напрямую, без промежуточного
+// декодирования через SemanticTokensBuilder.
+async function provideRechDocumentSemanticTokens(document) {
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/semanticTokens/full', {
+    textDocument: { uri: document.uri.toString() },
+  });
+  const data = resp && resp.result ? resp.result.data : null;
+  return new vscode.SemanticTokens(new Uint32Array(Array.isArray(data) ? data : []));
+}
+
+// provideRechBuiltinSource - содержимое синтетического документа
+// "rech-builtin:///<имя>.rech" (см. регистрацию content-провайдера выше) -
+// сервер сам знает, встроенная ли это функция вообще (builtindefinition.go,
+// builtinStubName/builtinStubSource) - "" (пустой документ), если нет.
+async function provideRechBuiltinSource(uri) {
+  const resp = await lspClient.request('rech/builtinSource', { uri: uri.toString() });
+  return resp && resp.result ? resp.result.content : '';
 }
 
 async function provideRechDefinition(document, position) {
