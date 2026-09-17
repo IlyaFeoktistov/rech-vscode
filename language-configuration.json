@@ -1,6 +1,7 @@
 {
   "comments": {
-    "lineComment": "//"
+    "lineComment": "//",
+    "blockComment": ["/**", "*/"]
   },
   "brackets": [
     ["{", "}"],
@@ -15,5 +16,29 @@
     ["{", "}"],
     ["(", ")"],
     ["\"", "\""]
+  ],
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*/\\*\\*(?!/)([^*]|\\*(?!/))*$",
+      "afterText": "^\\s*\\*/$",
+      "action": { "indent": "indentOutdent", "appendText": " * " }
+    },
+    {
+      "beforeText": "^\\s*/\\*\\*(?!/)([^*]|\\*(?!/))*$",
+      "action": { "indent": "none", "appendText": " * " }
+    },
+    {
+      "beforeText": "^(\\t|[ ])*\\*( ([^*]|\\*(?!/))*)?$",
+      "previousLineText": "(?<=^(\\t|[ ])*/\\*\\*.*)$",
+      "action": { "indent": "none", "appendText": "* " }
+    },
+    {
+      "beforeText": "^(\\t|[ ])*\\*( ([^*]|\\*(?!/))*)?$",
+      "action": { "indent": "none", "appendText": "* " }
+    },
+    {
+      "beforeText": "^(\\t|[ ])*\\*/\\s*$",
+      "action": { "indent": "none", "removeText": 1 }
+    }
   ]
 }
