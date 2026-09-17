@@ -65,13 +65,14 @@ function activate(context) {
     vscode.commands.registerCommand('rech.buildLib', () => runCaptured('build', { extraArgs: ['--lib'] })),
     vscode.commands.registerCommand('rech.run', () => runInTerminal('run')),
     vscode.commands.registerCommand('rech.test', () => runCaptured('test', { wholeProject: true })),
-    vscode.commands.registerCommand('rech.runTestFile', (filePath) => runCaptured('test', { explicitTarget: filePath })),
     vscode.commands.registerCommand('rech.debug', () => startDebugging()),
     vscode.debug.registerDebugConfigurationProvider('rech', new RechDebugConfigurationProvider()),
     vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
     vscode.languages.registerDocumentFormattingEditProvider('rech', { provideDocumentFormattingEdits: provideRechDocumentFormattingEdits }),
     vscode.languages.registerOnTypeFormattingEditProvider('rech', { provideOnTypeFormattingEdits: provideRechOnTypeFormattingEdits }, '/')
   );
+
+  setupTesting(context);
 
   // rech.lsp.enable - читается ОДИН РАЗ, при activate (не подписка на
   // onDidChangeConfiguration) - смена значения требует "Reload Window", как
@@ -331,18 +332,12 @@ async function runInTerminal(subcommand) {
 // редакторе на этой строке, весь вывод целиком - в OutputChannel.
 // wholeProject - для "rech test" запускает по корню открытой рабочей
 // области, а не по одному файлу (тесты обычно разбросаны по каталогу).
-// explicitTarget - готовый путь файла (CodeLens "▶ запустить тест",
-// codelens.go/runTestCodeLens - его аргумент, путь ЭТОГО конкретного
-// тестового файла) - в отличие от wholeProject/обычной ветки ниже, не
-// зависит от рабочей области или активного редактора вовсе. extraArgs -
-// флаги между subcommand и target ("--lib" у "Rech: собрать библиотеку") -
-// execRech всё равно берёт cwd из ПОСЛЕДНЕГО элемента массива аргументов,
-// значит extraArgs должны идти перед target, не после.
+// extraArgs - флаги между subcommand и target ("--lib" у "Rech: собрать
+// библиотеку") - execRech всё равно берёт cwd из ПОСЛЕДНЕГО элемента
+// массива аргументов, значит extraArgs должны идти перед target, не после.
 async function runCaptured(subcommand, opts = {}) {
   let target;
-  if (opts.explicitTarget) {
-    target = opts.explicitTarget;
-  } else if (opts.wholeProject) {
+  if (opts.wholeProject) {
     const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
     if (!folder) {
       vscode.window.showErrorMessage('Rech: нет открытой рабочей области для "rech test".');
@@ -392,6 +387,136 @@ function execRech(args) {
     });
     proc.on('close', (code) => resolve({ stdout, stderr, code }));
   });
+}
+
+// testFileSuffix - internal/testrunner.TestFileSuffix (не импортируется
+// напрямую - этот файл не читает Go-исходники), продублировано здесь как
+// единственная константа, а не выведено динамически - тот же принцип, что
+// и у остального клиента (rechPath()/execRech и т. п. - JS-сторона уже не
+// пытается сама разбирать Rech, только запускает "rech" как внешний
+// процесс).
+const testFileSuffix = '_тест.rech';
+
+// mainFuncPattern - "функция главная" (точка входа тестового файла, как и
+// у обычной программы) - имя ключевого слова "функция" не склоняется
+// вовсе, "главная" - фиксированное имя точки входа (тоже не склоняется,
+// это идентификатор, а не грамматическая форма), поэтому простой regex по
+// тексту документа надёжен без обращения к "rech lsp"/настоящему разбору -
+// нужен только НОМЕР СТРОКИ, чтобы поставить зелёную стрелку-гаттер
+// TestItem.range рядом именно с этой функцией, а не в начале файла.
+const mainFuncPattern = /^\s*функция\s+главная\b/;
+
+// setupTesting регистрирует нативный vscode.tests API ("Testing" панель +
+// зелёная стрелка-гаттер рядом с функцией в редакторе) - раньше "запустить
+// тест" был обычным текстовым CodeLens (internal/lsp/codelens.go,
+// runTestCodeLens), который VS Code рисует НАД строкой, сливая с "N
+// ссылок" на той же строке - обычная текстовая CodeLens в принципе не
+// может стать цветной гаттер-иконкой, это отдельный, куда более тяжёлый
+// механизм (TestController/TestItem/TestRun), см. обсуждение с
+// пользователем. Регистрируется В ПЕРВОМ (LSP-независимом) блоке
+// activate() - запуск теста как внешнего процесса "rech test <файл>" не
+// нуждается в "rech lsp" вовсе, тем же принципом, что и "rech.build"/
+// "rech.test"-команды выше.
+function setupTesting(context) {
+  const controller = vscode.tests.createTestController('rech', 'Rech');
+  context.subscriptions.push(controller);
+
+  const watcher = vscode.workspace.createFileSystemWatcher(`**/*${testFileSuffix}`);
+  context.subscriptions.push(
+    watcher,
+    watcher.onDidCreate((uri) => addOrUpdateTestItem(controller, uri)),
+    watcher.onDidChange((uri) => addOrUpdateTestItem(controller, uri)),
+    watcher.onDidDelete((uri) => controller.items.delete(uri.toString()))
+  );
+
+  discoverTestFiles(controller);
+
+  controller.createRunProfile('Запустить тест Rech', vscode.TestRunProfileKind.Run, (request, token) => runRechTests(controller, request, token), true);
+}
+
+// discoverTestFiles - первоначальное наполнение дерева тестов при
+// activate() - watcher (setupTesting) дальше держит его в живом
+// состоянии по мере создания/изменения/удаления файлов.
+async function discoverTestFiles(controller) {
+  const uris = await vscode.workspace.findFiles(`**/*${testFileSuffix}`);
+  await Promise.all(uris.map((uri) => addOrUpdateTestItem(controller, uri)));
+}
+
+// addOrUpdateTestItem - один TestItem на файл (модель тестов Rech -
+// файл целиком, "функция главная" внутри - ЕДИНСТВЕННАЯ точка входа, без
+// вложенных подтестов - см. internal/testrunner, package doc: "Тестовый
+// файл - обычная программа Rech со своей 'главная'", докстрока намеренно
+// НЕ заводит синтаксис для именованных подтестов). id - строка URI (тот
+// же файл, открытый повторно, обновляет уже существующий TestItem, а не
+// плодит дубликат).
+async function addOrUpdateTestItem(controller, uri) {
+  const item = controller.createTestItem(uri.toString(), vscode.workspace.asRelativePath(uri), uri);
+  item.range = await mainFuncRange(uri);
+  controller.items.add(item);
+}
+
+// mainFuncRange - диапазон строки "функция главная" в файле uri (undefined,
+// если не нашлась - файл ещё не дописан/чтение не удалось - TestItem
+// всё равно создаётся, просто без гаттер-иконки в редакторе, только узлом
+// в панели Testing). vscode.workspace.openTextDocument здесь НЕ открывает
+// вкладку редактора (в отличие от vscode.window.showTextDocument) - только
+// загружает содержимое в память, тот же приём, что и у прочих фоновых
+// проверок этого расширения.
+async function mainFuncRange(uri) {
+  try {
+    const doc = await vscode.workspace.openTextDocument(uri);
+    for (let i = 0; i < doc.lineCount; i++) {
+      const text = doc.lineAt(i).text;
+      if (mainFuncPattern.test(text)) {
+        return new vscode.Range(i, 0, i, text.length);
+      }
+    }
+  } catch {
+    // Файл удалён/недоступен между findFiles и открытием - не фатально,
+    // TestItem просто останется без диапазона.
+  }
+  return undefined;
+}
+
+// runRechTests - обработчик профиля запуска ("Запустить тест Rech" выше и
+// клик по зелёной стрелке) - request.include - конкретно выбранные
+// TestItem (клик по одной стрелке/выбор в панели Testing), не задано -
+// "запустить все" (клик по стрелке на корне дерева). Каждый файл - ОТДЕЛЬНЫЙ
+// процесс "rech test <файл>" (execRech, тот же путь, что и "Rech: запустить
+// тесты"/CodeLens раньше) - не пакетный "rech test <каталог>" сразу на всё
+// дерево, чтобы результат/вывод каждого файла попадал В СВОЙ TestItem, а не
+// одним слитным блоком на всё дерево сразу.
+async function runRechTests(controller, request, token) {
+  const run = controller.createTestRun(request);
+  const queue = [];
+  if (request.include) {
+    queue.push(...request.include);
+  } else {
+    controller.items.forEach((item) => queue.push(item));
+  }
+  for (const item of queue) {
+    if (token.isCancellationRequested) {
+      run.skipped(item);
+      continue;
+    }
+    run.started(item);
+    const startedAt = Date.now();
+    const result = await execRech(['test', item.uri.fsPath]);
+    const duration = Date.now() - startedAt;
+    const output = (result.stdout + result.stderr).trim();
+    if (output) {
+      // appendOutput ждёт CRLF (терминальные последовательности), а не
+      // обычный "\n" - недокументированная на первый взгляд, но
+      // обязательная деталь API vscode.tests.
+      run.appendOutput(output.replace(/\r?\n/g, '\r\n') + '\r\n', undefined, item);
+    }
+    if (result.code === 0) {
+      run.passed(item, duration);
+    } else {
+      run.failed(item, new vscode.TestMessage(output || `код выхода ${result.code}`), duration);
+    }
+  }
+  run.end();
 }
 
 // parseDiagnostics - разбор "строка N[, столбец M]: ..." из текста ошибки
@@ -764,17 +889,14 @@ async function provideRechCodeActions(document, range) {
 }
 
 // provideRechCodeLenses - "textDocument/codeLens" (internal/lsp/
-// codelens.go) - "N ссылок" над каждым объявлением документа, плюс "▶
-// запустить тест" над "функция главная" тестового файла. Сервер уже
+// codelens.go) - "N ссылок" над каждым объявлением документа. Сервер уже
 // присылает готовую команду (title + аргументы) на каждый CodeLens -
 // resolveProvider не объявлен (server.go, initialize), значит клиенту не
-// нужно вызывать codeLens/resolve отдельно. Два РАЗНЫХ клиентских command,
-// с разной формой arguments (см. server.go, handleCodeLens):
-// "editor.action.showReferences" (встроенная команда VS Code - uri,
-// position, locations) - разбирается и переводится в настоящие
-// vscode.Uri/Position/Location; любая другая (сейчас - только
-// "rech.runTestFile", registerCommand выше) - аргументы уже готовы как
-// есть (путь файла строкой), передаются без изменений.
+// нужно вызывать codeLens/resolve отдельно. Единственная клиентская
+// команда - встроенная "editor.action.showReferences" (uri, position,
+// locations) - разбирается и переводится в настоящие vscode.Uri/Position/
+// Location ("запустить тест" раньше был вторым, с другой формой
+// arguments - переведён на нативный vscode.tests API, см. setupTesting).
 async function provideRechCodeLenses(document) {
   lspClient.syncDocument(document);
   const resp = await lspClient.request('textDocument/codeLens', {
@@ -788,13 +910,6 @@ async function provideRechCodeLenses(document) {
       item.range.start.line, item.range.start.character,
       item.range.end.line, item.range.end.character
     );
-    if (item.command.command !== 'editor.action.showReferences') {
-      return new vscode.CodeLens(range, {
-        title: item.command.title,
-        command: item.command.command,
-        arguments: item.command.arguments,
-      });
-    }
     const [uri, position, locations] = item.command.arguments;
     return new vscode.CodeLens(range, {
       title: item.command.title,
