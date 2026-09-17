@@ -65,6 +65,7 @@ function activate(context) {
     vscode.commands.registerCommand('rech.buildLib', () => runCaptured('build', { extraArgs: ['--lib'] })),
     vscode.commands.registerCommand('rech.run', () => runInTerminal('run')),
     vscode.commands.registerCommand('rech.test', () => runCaptured('test', { wholeProject: true })),
+    vscode.commands.registerCommand('rech.runTestFile', (filePath) => runCaptured('test', { explicitTarget: filePath })),
     vscode.commands.registerCommand('rech.debug', () => startDebugging()),
     vscode.debug.registerDebugConfigurationProvider('rech', new RechDebugConfigurationProvider()),
     vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
@@ -284,12 +285,18 @@ async function runInTerminal(subcommand) {
 // редакторе на этой строке, весь вывод целиком - в OutputChannel.
 // wholeProject - для "rech test" запускает по корню открытой рабочей
 // области, а не по одному файлу (тесты обычно разбросаны по каталогу).
-// extraArgs - флаги между subcommand и target ("--lib" у "Rech: собрать
-// библиотеку") - execRech всё равно берёт cwd из ПОСЛЕДНЕГО элемента
-// массива аргументов, значит extraArgs должны идти перед target, не после.
+// explicitTarget - готовый путь файла (CodeLens "▶ запустить тест",
+// codelens.go/runTestCodeLens - его аргумент, путь ЭТОГО конкретного
+// тестового файла) - в отличие от wholeProject/обычной ветки ниже, не
+// зависит от рабочей области или активного редактора вовсе. extraArgs -
+// флаги между subcommand и target ("--lib" у "Rech: собрать библиотеку") -
+// execRech всё равно берёт cwd из ПОСЛЕДНЕГО элемента массива аргументов,
+// значит extraArgs должны идти перед target, не после.
 async function runCaptured(subcommand, opts = {}) {
   let target;
-  if (opts.wholeProject) {
+  if (opts.explicitTarget) {
+    target = opts.explicitTarget;
+  } else if (opts.wholeProject) {
     const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
     if (!folder) {
       vscode.window.showErrorMessage('Rech: нет открытой рабочей области для "rech test".');
@@ -678,13 +685,17 @@ async function provideRechCodeActions(document, range) {
 }
 
 // provideRechCodeLenses - "textDocument/codeLens" (internal/lsp/
-// codelens.go) - "N ссылок" над каждым объявлением документа. Сервер уже
-// присылает готовую команду (title + все locations) на каждый CodeLens -
+// codelens.go) - "N ссылок" над каждым объявлением документа, плюс "▶
+// запустить тест" над "функция главная" тестового файла. Сервер уже
+// присылает готовую команду (title + аргументы) на каждый CodeLens -
 // resolveProvider не объявлен (server.go, initialize), значит клиенту не
-// нужно вызывать codeLens/resolve отдельно, разбора command.arguments
-// здесь достаточно. "editor.action.showReferences" - встроенная команда
-// VS Code (uri, position, locations) - открывает панель "Найдено ссылок",
-// ничего специфичного для Rech в ней исполнять не нужно.
+// нужно вызывать codeLens/resolve отдельно. Два РАЗНЫХ клиентских command,
+// с разной формой arguments (см. server.go, handleCodeLens):
+// "editor.action.showReferences" (встроенная команда VS Code - uri,
+// position, locations) - разбирается и переводится в настоящие
+// vscode.Uri/Position/Location; любая другая (сейчас - только
+// "rech.runTestFile", registerCommand выше) - аргументы уже готовы как
+// есть (путь файла строкой), передаются без изменений.
 async function provideRechCodeLenses(document) {
   lspClient.syncDocument(document);
   const resp = await lspClient.request('textDocument/codeLens', {
@@ -698,6 +709,13 @@ async function provideRechCodeLenses(document) {
       item.range.start.line, item.range.start.character,
       item.range.end.line, item.range.end.character
     );
+    if (item.command.command !== 'editor.action.showReferences') {
+      return new vscode.CodeLens(range, {
+        title: item.command.title,
+        command: item.command.command,
+        arguments: item.command.arguments,
+      });
+    }
     const [uri, position, locations] = item.command.arguments;
     return new vscode.CodeLens(range, {
       title: item.command.title,
