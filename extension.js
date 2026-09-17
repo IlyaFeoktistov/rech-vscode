@@ -69,7 +69,8 @@ function activate(context) {
     vscode.commands.registerCommand('rech.debug', () => startDebugging()),
     vscode.debug.registerDebugConfigurationProvider('rech', new RechDebugConfigurationProvider()),
     vscode.debug.registerDebugAdapterDescriptorFactory('rech', new RechDebugAdapterDescriptorFactory()),
-    vscode.languages.registerDocumentFormattingEditProvider('rech', { provideDocumentFormattingEdits: provideRechDocumentFormattingEdits })
+    vscode.languages.registerDocumentFormattingEditProvider('rech', { provideDocumentFormattingEdits: provideRechDocumentFormattingEdits }),
+    vscode.languages.registerOnTypeFormattingEditProvider('rech', { provideOnTypeFormattingEdits: provideRechOnTypeFormattingEdits }, '/')
   );
 
   // rech.lsp.enable - читается ОДИН РАЗ, при activate (не подписка на
@@ -199,6 +200,31 @@ function traceLspMessage(direction, msg) {
   }
   const label = msg.method ? msg.method : `ответ #${msg.id}`;
   outputChannel.appendLine(`[LSP ${direction}] ${label}${msg.id !== undefined && msg.method ? ` (#${msg.id})` : ''}`);
+}
+
+// provideRechOnTypeFormattingEdits - закрытие doc-комментария "*/" одним
+// движением: onEnterRules (language-configuration.json) продолжает КАЖДУЮ
+// следующую строку внутри "/** ... */" как "* " (звёздочка, пробел) - если
+// пользователь печатает "/" сразу после этого автоматического пробела,
+// желая закрыть блок, результат - "* /" (лишний пробел между звёздочкой и
+// слэшем), не "*/". Здесь - убирает ровно этот один пробел ПРЯМО ПЕРЕД
+// только что введённым "/", если текст строки до курсора - "<отступ>* " -
+// тем же принципом "умного набора", каким автозакрывающиеся скобки убирают
+// лишний символ, но onEnterRules/autoClosingPairs сами такого не умеют
+// (сработавшее правило onEnterRules нельзя условно отменить следующим
+// вводом символа - нужен отдельный DocumentOnTypeFormattingEditProvider).
+// Проверяется только "начинается с '*' после пробелов" - у Rech нет общего
+// "/* ... */" (только doc-комментарий "/**...*/"), поэтому голая "*" в
+// начале строки за пределами комментария означала бы синтаксическую
+// ошибку (умножение не может начинать строку) - вне комментария это
+// сочетание никогда не встретится в валидном коде.
+function provideRechOnTypeFormattingEdits(document, position) {
+  const before = document.lineAt(position.line).text.substring(0, position.character - 1);
+  if (!/^\s*\*\s$/.test(before)) {
+    return [];
+  }
+  const spaceCol = before.length - 1;
+  return [vscode.TextEdit.delete(new vscode.Range(position.line, spaceCol, position.line, spaceCol + 1))];
 }
 
 // provideRechDocumentFormattingEdits - "rech fmt <файл>" (docs/ROADMAP.md,
