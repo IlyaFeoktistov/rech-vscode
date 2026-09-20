@@ -389,13 +389,16 @@ function execRech(args) {
   });
 }
 
-// testFileSuffix - internal/testrunner.TestFileSuffix (не импортируется
-// напрямую - этот файл не читает Go-исходники), продублировано здесь как
-// единственная константа, а не выведено динамически - тот же принцип, что
-// и у остального клиента (rechPath()/execRech и т. п. - JS-сторона уже не
+// testFileGlob - internal/testrunner.IsTestFile/module.SourceExtensions
+// (не импортируются напрямую - этот файл не читает Go-исходники),
+// продублировано здесь, а не выведено динамически - тот же принцип, что и
+// у остального клиента (rechPath()/execRech и т. п. - JS-сторона уже не
 // пытается сама разбирать Rech, только запускает "rech" как внешний
-// процесс).
-const testFileSuffix = '_тест.rech';
+// процесс). Перечисляет ВСЕ расширения-синонимы (".rech"/".речь"/".р")
+// через brace-alternation glob'а - "rech test" узнаёт файл с любым из них
+// одинаково.
+const testFileExtensions = ['rech', 'речь', 'р'];
+const testFileGlob = `**/*_тест.{${testFileExtensions.join(',')}}`;
 
 // mainFuncPattern - "функция главная" (точка входа тестового файла, как и
 // у обычной программы) - имя ключевого слова "функция" не склоняется
@@ -421,7 +424,7 @@ function setupTesting(context) {
   const controller = vscode.tests.createTestController('rech', 'Rech');
   context.subscriptions.push(controller);
 
-  const watcher = vscode.workspace.createFileSystemWatcher(`**/*${testFileSuffix}`);
+  const watcher = vscode.workspace.createFileSystemWatcher(testFileGlob);
   context.subscriptions.push(
     watcher,
     watcher.onDidCreate((uri) => addOrUpdateTestItem(controller, uri)),
@@ -438,7 +441,7 @@ function setupTesting(context) {
 // activate() - watcher (setupTesting) дальше держит его в живом
 // состоянии по мере создания/изменения/удаления файлов.
 async function discoverTestFiles(controller) {
-  const uris = await vscode.workspace.findFiles(`**/*${testFileSuffix}`);
+  const uris = await vscode.workspace.findFiles(testFileGlob);
   await Promise.all(uris.map((uri) => addOrUpdateTestItem(controller, uri)));
 }
 

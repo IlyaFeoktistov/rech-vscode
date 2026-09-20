@@ -23,7 +23,7 @@
       {
         "id": "rech",
         "aliases": ["Rech", "rech"],
-        "extensions": [".rech"],
+        "extensions": [".rech", ".речь", ".р"],
         "configuration": "./language-configuration.json",
         "icon": { "light": "./icons/rech-file-light.png", "dark": "./icons/rech-file-dark.png" }
       },
