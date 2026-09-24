@@ -25,6 +25,7 @@
     { "include": "#entity-declaration" },
     { "include": "#interface-declaration" },
     { "include": "#enum-declaration" },
+    { "include": "#synonym-declaration" },
     { "include": "#constant-declaration" },
     { "include": "#import-declaration" },
     { "include": "#keywords-declaration" },
@@ -225,6 +226,15 @@
         "2": { "name": "entity.name.type.rech" }
       }
     },
+    "synonym-declaration": {
+      "comment": "'синоним [?]Имя[<T>] = Тип' - синоним типа; '?' перед именем - синоним nullable-типа.",
+      "match": "\\b(синоним)\\s+(\\?)?([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.rech" },
+        "2": { "name": "keyword.operator.rech" },
+        "3": { "name": "entity.name.type.rech" }
+      }
+    },
     "constant-declaration": {
       "comment": "'константа ИМЯ' (в том числе после 'приватная'/'публичная' - те распознаются отдельным правилом раньше в списке). Имя константы - отдельная область 'variable.other.constant', а не 'entity.name.type', даже когда оно записано ЗАГЛАВНЫМИ_БУКВАМИ_С_ПОДЧЁРКИВАНИЕМ и иначе совпало бы с правилом для имён типов/сущностей.",
       "match": "\\b(константа)\\s+([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*)",
@@ -248,7 +258,7 @@
     },
     "keywords-declaration": {
       "name": "keyword.other.rech",
-      "match": "\\b(функция|переменная|сущность|класс|структура|имеет|использовать|из|как|внешняя|состояние|вывести|показать|константа|перечисление|наследует|реализует)\\b"
+      "match": "\\b(функция|переменная|сущность|класс|структура|имеет|использовать|из|как|внешняя|состояние|вывести|показать|константа|перечисление|синоним|наследует|реализует)\\b"
     },
     "prepositions": {
       "name": "keyword.other.preposition.rech",
