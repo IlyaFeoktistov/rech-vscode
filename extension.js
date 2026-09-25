@@ -145,6 +145,13 @@ function activate(context) {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
     }),
     vscode.languages.registerCompletionItemProvider('rech', { provideCompletionItems: provideRechCompletionItems }, '.', '"'),
+    // Автоимпорт при сохранении (internal/lsp/autoimport.go) - сервер
+    // возвращает вставки строк "использовать" до записи файла.
+    vscode.workspace.onWillSaveTextDocument((event) => {
+      if (event.document.languageId === 'rech') {
+        event.waitUntil(provideRechWillSaveEdits(event.document));
+      }
+    }),
     vscode.languages.registerCodeLensProvider('rech', { provideCodeLenses: provideRechCodeLenses }),
     vscode.languages.registerSignatureHelpProvider('rech', { provideSignatureHelp: provideRechSignatureHelp }, '(', ','),
     // "Перейти к определению" на встроенной функции (internal/lsp/
@@ -871,6 +878,27 @@ async function provideRechDocumentHighlights(document, position) {
 // сразу, см. package doc internal/lsp/document.go), поэтому document/range
 // пробрасываются, но их содержимое сервер игнорирует - контракт метода
 // всё равно требует их передать.
+// provideRechWillSaveEdits - "textDocument/willSaveWaitUntil": недостающие
+// "использовать" для имён, объявленных ровно в одном файле проекта.
+// Отключается настройкой "rech.autoImport.enable".
+async function provideRechWillSaveEdits(document) {
+  if (!vscode.workspace.getConfiguration('rech').get('autoImport.enable', true)) {
+    return [];
+  }
+  lspClient.syncDocument(document);
+  const resp = await lspClient.request('textDocument/willSaveWaitUntil', {
+    textDocument: { uri: document.uri.toString() },
+    reason: 1,
+  });
+  if (!resp || !Array.isArray(resp.result)) {
+    return [];
+  }
+  return resp.result.map((e) => vscode.TextEdit.replace(
+    new vscode.Range(e.range.start.line, e.range.start.character, e.range.end.line, e.range.end.character),
+    e.newText
+  ));
+}
+
 async function provideRechCodeActions(document, range) {
   lspClient.syncDocument(document);
   const resp = await lspClient.request('textDocument/codeAction', {
