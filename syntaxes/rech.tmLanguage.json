@@ -28,6 +28,7 @@
     { "include": "#synonym-declaration" },
     { "include": "#constant-declaration" },
     { "include": "#import-declaration" },
+    { "include": "#std-module-path" },
     { "include": "#keywords-declaration" },
     { "include": "#prepositions" },
     { "include": "#builtin-types" },
@@ -241,6 +242,15 @@
       "captures": {
         "1": { "name": "keyword.other.rech" },
         "2": { "name": "variable.other.constant.rech" }
+      }
+    },
+    "std-module-path": {
+      "comment": "'из стандарт/математика' - стандартный модуль встроенных функций и типов (docs/SPEC.md, раздел 10): путь без кавычек, в отличие от пути к своему файлу.",
+      "match": "(стандарт)(/)([A-Za-zА-Яа-яЁё0-9_]+)",
+      "captures": {
+        "1": { "name": "entity.name.namespace.rech" },
+        "2": { "name": "punctuation.separator.rech" },
+        "3": { "name": "entity.name.namespace.rech" }
       }
     },
     "import-declaration": {

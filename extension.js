@@ -262,7 +262,9 @@ async function provideRechDocumentFormattingEdits(document) {
   let result;
   try {
     fs.writeFileSync(tmpFile, document.getText(), 'utf8');
-    result = await execRech(['fmt', tmpFile]);
+    // --as - импорты (свои и автоимпорт встроенных из стандарт/...)
+    // разрешаются от настоящего места документа, не от временного файла.
+    result = await execRech(['fmt', '--as', document.fileName, tmpFile]);
   } finally {
     fs.unlink(tmpFile, () => {});
   }
